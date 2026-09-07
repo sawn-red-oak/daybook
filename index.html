@@ -280,8 +280,11 @@ select{appearance:none;padding-right:20px;
       <div class="two">
         <label class="field"><span>round each block</span>
           <select id="setRound">
-            <option value="0">no rounding</option><option value="6">6 min · 0.1 h</option>
-            <option value="15">15 min · 0.25 h</option><option value="30">30 min · 0.5 h</option>
+            <option value="0">none — exact</option>
+            <option value="0.6">0.01 h · 36 sec</option>
+            <option value="6">0.1 h · 6 min</option>
+            <option value="15">0.25 h · 15 min</option>
+            <option value="30">0.5 h · 30 min</option>
           </select></label>
         <label class="field"><span>direction</span>
           <select id="setRoundMode"><option value="nearest">nearest</option><option value="up">always up</option></select></label>
@@ -325,7 +328,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.3.0";
+var VERSION="1.4.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -837,7 +840,7 @@ function renderSetup(){
   $("#bizPhone").value=S.business.phone||"";
   $("#bizAddr").value=S.business.address||"";
   $("#bizTerms").value=S.business.terms||"";
-  $("#setRound").value=String(S.settings.round);
+  $("#setRound").value=String(+S.settings.round||0);
   $("#setRoundMode").value=S.settings.roundMode;
   $("#setNet").value=S.settings.net||0;
   $("#setCur").value=S.settings.currency||"$";
