@@ -261,6 +261,7 @@ select{appearance:none;padding-right:20px;
         <button class="btn" id="exportBackup">backup json</button>
         <button class="btn" id="writeMasters">write master sheets</button>
         <button class="btn" id="importBackup">import json</button>
+        <button class="btn" id="pasteData">paste data</button>
       </div>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
@@ -506,6 +507,59 @@ function toCsv(list){
   return rows.join("\r\n")+"\r\n";
 }
 
+/* =========================================================
+   Plain-text log parser. Accepts the shape Eamon already
+   writes in Keep, e.g.
+     Wed 9/2 in at 530a, out at 630a, in at 1015a, out at 115p
+   Leading [ ] / [x] checkboxes are ignored.
+   ========================================================= */
+function parseClock(tok){
+  var m=/^(\d{1,2})[:.]?(\d{2})?\s*(am|pm|a|p)?$/i.exec(String(tok).trim());
+  if(!m) return null;
+  var h=+m[1], mi=m[2]?+m[2]:0, ap=(m[3]||"").toLowerCase().charAt(0);
+  if(h>23||mi>59) return null;
+  if(ap==="p"){ if(h<12) h+=12; }
+  else if(ap==="a"){ if(h===12) h=0; }
+  else if(h>=1&&h<=6){ h+=12; }        // "in at 2, out at 3" means afternoon
+  return h*60+mi;
+}
+function parseDate(line,ref){
+  var m=/(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/.exec(line);
+  if(!m) return null;
+  var mo=+m[1], da=+m[2], yr;
+  if(m[3]){ yr=+m[3]; if(yr<100) yr+=2000; }
+  else{
+    yr=new Date(ref).getFullYear();
+    if(new Date(yr,mo-1,da).getTime()-ref>180*864e5) yr--;
+  }
+  var d=new Date(yr,mo-1,da);
+  if(d.getMonth()!==mo-1||d.getDate()!==da) return null;
+  return d.getTime();
+}
+function parseLog(text,ref){
+  var out=[],bad=[];
+  String(text).split(/\r?\n/).forEach(function(raw){
+    var line=raw.replace(/^\s*\[.?\]\s*/,"").trim();
+    if(!line) return;
+    var day=parseDate(line,ref);
+    if(day==null){ bad.push(raw.trim()); return; }
+    var re=/\b(in|out)\b(?:\s+at)?\s*[:\-]?\s*(\d{1,2}[:.]?\d{0,2}\s*(?:am|pm|a|p)?)/gi, m, seq=[];
+    while((m=re.exec(line))){
+      var mins=parseClock(m[2]);
+      if(mins!=null) seq.push([m[1].toLowerCase(),mins]);
+    }
+    if(!seq.length){ bad.push(raw.trim()); return; }
+    for(var i=0;i<seq.length-1;i++){
+      if(seq[i][0]!=="in"||seq[i+1][0]!=="out") continue;
+      var s=day+seq[i][1]*60000, e=day+seq[i+1][1]*60000;
+      if(e<=s) e+=864e5;
+      out.push({start:s,end:e});
+      i++;
+    }
+  });
+  return {blocks:out,bad:bad};
+}
+
 /* ---------- render: track ---------- */
 var ticker=null;
 function renderTrack(){
@@ -740,7 +794,7 @@ function paintSheet(){
   if(!d){ $("#scrim").hidden=true; return }
   var sh=$("#sheet"); sh.innerHTML="";
   var builder={client:sheetClient,entry:sheetEntry,stop:sheetStop,live:sheetLive,
-               invoice:sheetInvoice,range:sheetRange}[d.kind];
+               invoice:sheetInvoice,range:sheetRange,paste:sheetPaste}[d.kind];
   if(!builder){ closeSheet(); return }
   builder(sh,d);
   $("#scrim").hidden=false; document.body.style.overflow="hidden";
@@ -995,6 +1049,79 @@ function sheetClient(sh,d){
   }
   sh.appendChild(btns);
   setTimeout(function(){try{if(isNew)n.focus()}catch(e){}},60);
+}
+
+/* --- paste in a plain-text log, or a JSON backup --- */
+function sheetPaste(sh,d){
+  head(sh,"paste data");
+  sh.appendChild(el("div","note","Paste a JSON backup, or lines the way you'd jot them: "+
+    "\u201cWed 9/2 in at 530a, out at 630a, in at 1015a, out at 115p\u201d. One day per line."));
+  var cs=liveClients();
+  var sc=el("select");
+  cs.forEach(function(c){var o=el("option",null,c.name);o.value=c.id;sc.appendChild(o)});
+  sc.value=d.draft.cid||(cs[0]||{}).id||"";
+  sc.addEventListener("change",function(){d.draft.cid=sc.value;touch();preview()});
+  if(cs.length>1) fieldOf(sh,"client",sc);
+  var plc=d.draft.place||S.settings.place||"onsite";
+  var lbl=el("div","field");lbl.appendChild(el("span",null,"location"));
+  lbl.appendChild(segmented(plc,function(v){plc=v;d.draft.place=v;touch()}));
+  sh.appendChild(lbl);
+
+  var ta=el("textarea");ta.rows=6;ta.placeholder="Mon 8/31 in 930a, out at 1p";
+  fieldOf(sh,"paste here",ta); bindDraft(ta,"text");
+  var out=el("div","note"); sh.appendChild(out);
+  var found=[];
+  function preview(){
+    var txt=(ta.value||"").trim();
+    found=[];
+    out.innerHTML="";
+    if(!txt){ out.textContent="Nothing pasted yet."; return }
+    if(txt.charAt(0)==="{"){ out.textContent="Looks like a JSON backup — tap import to merge it."; return }
+    var r=parseLog(txt,now());
+    var dupe=0;
+    r.blocks.forEach(function(b){
+      var clash=allEntries().some(function(x){
+        return x.clientId===sc.value&&x.start===b.start&&x.end===b.end});
+      if(clash){dupe++;return}
+      found.push(b);
+    });
+    var ul=el("ul","klist");
+    found.slice(0,30).forEach(function(b){
+      var li=el("li");li.appendChild(el("span","b","\u00b7"));
+      var t=el("span",null,dlong(b.start)+"   "+t12(b.start)+"\u2013"+t12(b.end)+"   "+
+        fmtH(roundHours((b.end-b.start)/3600000))+" h");
+      t.style.flex="1";li.appendChild(t);ul.appendChild(li);
+    });
+    out.appendChild(el("div",null,found.length+" block"+(found.length===1?"":"s")+" to add"+
+      (dupe?", "+dupe+" already logged (skipped)":"")+
+      (r.bad.length?", "+r.bad.length+" line(s) not understood":"")));
+    if(found.length) out.appendChild(ul);
+    if(r.bad.length) out.appendChild(el("div","khint","not understood: "+r.bad.slice(0,3).join(" / ")));
+  }
+  ta.addEventListener("input",preview);
+  preview();
+
+  var btns=el("div","btns");
+  var go=el("button","btn solid grow","import");go.type="button";
+  go.onclick=function(){
+    var txt=(ta.value||"").trim();
+    if(!txt){toast("nothing to import");return}
+    if(txt.charAt(0)==="{"){
+      try{ mergeBackup(JSON.parse(txt)); }
+      catch(e){ toast("that JSON didn't parse"); return }
+      UI.sheet=null;saveUI();closeSheet();renderAll();
+      toast("imported "+allEntries().length+" entries");return;
+    }
+    if(!sc.value){toast("add a client first");return}
+    if(!found.length){toast("nothing new to add");return}
+    found.forEach(function(b){
+      putEntry({id:uid(),clientId:sc.value,start:b.start,end:b.end,place:plc,tasks:[]})});
+    var n=found.length;
+    UI.sheet=null;saveUI();closeSheet();renderAll();
+    toast("added "+n+" block"+(n===1?"":"s"));
+  };
+  btns.appendChild(go);sh.appendChild(btns);
+  sh.appendChild(el("div","khint","Blocks come in with no notes \u2014 tap any one to fill them in."));
 }
 
 /* --- custom range --- */
@@ -1307,24 +1434,26 @@ $("#writeMasters").addEventListener("click",function(){
   writeAllDerived().then(function(){toast("master sheets written to Hours/")})
     .catch(function(){toast("couldn't write to that folder")})});
 $("#importBackup").addEventListener("click",function(){$("#importFile").click()});
+function mergeBackup(p){
+  if(!p||typeof p!=="object")throw new Error("not a backup");
+  S.clients=Object.assign(S.clients,p.clients||{});
+  if(p.business)S.business=Object.assign(S.business,p.business);
+  if(p.settings)S.settings=Object.assign(S.settings,p.settings);
+  for(var k in (p.months||{})) S.months[k]=Object.assign(S.months[k]||{},p.months[k]);
+  S.invoices=Object.assign(S.invoices,p.invoices||{});
+  migrate();save();
+}
 $("#importFile").addEventListener("change",function(){
   var f=this.files&&this.files[0];if(!f)return;
   var r=new FileReader();
   r.onload=function(){
-    try{
-      var p=JSON.parse(r.result);
-      if(!p||typeof p!=="object")throw 0;
-      S.clients=Object.assign(S.clients,p.clients||{});
-      if(p.business)S.business=Object.assign(S.business,p.business);
-      if(p.settings)S.settings=Object.assign(S.settings,p.settings);
-      for(var k in (p.months||{})) S.months[k]=Object.assign(S.months[k]||{},p.months[k]);
-      S.invoices=Object.assign(S.invoices,p.invoices||{});
-      migrate();save();renderAll();
+    try{ mergeBackup(JSON.parse(r.result)); renderAll();
       toast("imported "+allEntries().length+" entries");
     }catch(e){toast("that file didn't parse as a backup")}
   };
   r.readAsText(f); this.value="";
 });
+$("#pasteData").addEventListener("click",function(){openSheet({kind:"paste"})});
 [["#bizName","name"],["#bizEmail","email"],["#bizPhone","phone"],["#bizAddr","address"],["#bizTerms","terms"]]
 .forEach(function(p){$(p[0]).addEventListener("change",function(){S.business[p[1]]=this.value;save()})});
 [["#setRound","round",1],["#setRoundMode","roundMode",0],["#setPrefix","prefix",0],
