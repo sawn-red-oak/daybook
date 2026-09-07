@@ -338,7 +338,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.8.1";
+var VERSION="1.8.2";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -720,9 +720,14 @@ function renderTrack(){
     var s=el("span"); s.appendChild(document.createTextNode(p[0]+" ")); s.appendChild(el("b",null,p[1])); t.appendChild(s);
   });
 
-  var rec=allEntries().slice(0,8),host=$("#recent"); host.innerHTML="";
-  if(!rec.length) host.appendChild(el("div","empty","nothing logged yet"));
-  else host.appendChild(logList(rec,false));
+  /* Track is the working screen: it shows what is still outstanding.
+     Invoiced blocks are done with and live on the blocks and invoices tabs. */
+  var open=allEntries().filter(function(b){return !isInvoiced(b)});
+  var rec=open.slice(0,8),host=$("#recent"); host.innerHTML="";
+  if(rec.length) host.appendChild(logList(rec,false));
+  else host.appendChild(el("div","empty",allEntries().length
+    ? "nothing un-invoiced — every block is billed"
+    : "nothing logged yet"));
 }
 function tick(){if(S.active)$("#elapsed").textContent=hhmmss(now()-S.active.start)}
 
