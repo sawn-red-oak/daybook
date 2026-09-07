@@ -151,9 +151,12 @@ select{appearance:none;padding-right:20px;
 .klist{margin:4px 0 0;padding:0;list-style:none}
 .klist li{display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--line);background:var(--bg)}
 .klist li.drag{opacity:.6;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
-.klist .grip{flex:none;color:var(--faint);cursor:grab;padding:11px 4px 11px 0;touch-action:none;
-  line-height:1;font-size:var(--fs-md);user-select:none;-webkit-user-select:none}
-.klist .grip:active{cursor:grabbing;color:var(--fg)}
+.klist .grip{flex:none;color:var(--faint);cursor:grab;touch-action:none;
+  display:flex;align-items:center;justify-content:center;
+  min-width:38px;min-height:44px;margin-left:-8px;font-size:19px;line-height:1;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.klist .grip:active,.klist li.drag .grip{cursor:grabbing;color:var(--fg)}
+.klist li.drag{background:var(--surface,#141414);opacity:.9}
 .klist li.blank .grip{visibility:hidden}
 .klist li input{flex:1;min-width:0;border:0;background:none;padding:11px 0;font-size:var(--fs-lg)}
 .klist li input::placeholder{color:var(--faint)}
@@ -335,7 +338,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.7.1";
+var VERSION="1.8.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -356,6 +359,12 @@ function ymd(ms){var d=new Date(ms);return d.getFullYear()+"-"+pad(d.getMonth()+
 /* "Sun Sept 06 2026" */
 function dlong(ms){var d=new Date(ms);
   return DOWS[d.getDay()]+" "+MONS[d.getMonth()]+" "+pad(d.getDate())+" "+d.getFullYear()}
+/* Invoice header dates read the way Eamon writes them: 09-06-2026.
+   The CSV keeps ISO, which is what sorts correctly in a spreadsheet. */
+function mdyStr(iso){
+  var p=String(iso||"").split("-");
+  return p.length===3?p[1]+"-"+p[2]+"-"+p[0]:String(iso||"");
+}
 function dlongKey(k){var p=k.split("-");return dlong(new Date(+p[0],+p[1]-1,+p[2]).getTime())}
 /* "3:26p" / "7:17a" */
 function t12(ms){var d=new Date(ms),h=d.getHours(),m=d.getMinutes(),ap=h<12?"a":"p";
@@ -375,18 +384,16 @@ function money(n){return (S.settings.currency||"$")+n.toLocaleString(undefined,{
    email + phone + address is the shape Chrome reads as an address form,
    and that is what made it interrupt with a save-address prompt. Nothing
    there benefits from autofill anyway — it is your own detail, typed once. */
-function tuneInputs(root,noFill){
+function tuneInputs(root){
   var ns=(root||document).querySelectorAll("input,textarea,select");
   Array.prototype.forEach.call(ns,function(n){
     n.setAttribute("autocorrect","off");
     n.setAttribute("autocapitalize","off");
-    n.removeAttribute("spellcheck");
-    if(noFill){
-      n.setAttribute("autocomplete","off");
-      n.setAttribute("data-form-type","other");
-      n.setAttribute("data-lpignore","true");
-      if(n.type==="email"){ n.type="text"; n.setAttribute("inputmode","email"); }
-    }
+    n.setAttribute("spellcheck","false");
+    n.setAttribute("autocomplete","off");
+    n.setAttribute("data-form-type","other");
+    n.setAttribute("data-lpignore","true");
+    if(n.type==="email"){ n.type="text"; n.setAttribute("inputmode","email"); }
   });
 }
 function toast(m){var t=$("#toast");t.textContent=m;t.hidden=false;
@@ -895,7 +902,7 @@ function renderInvoices(){
     body.appendChild(l1);
     body.appendChild(el("div","place",
       (S.clients[iv.clientId]?S.clients[iv.clientId].name:"—")+" \u00b7 "+
-      (iv.hours||0).toFixed(2)+" h \u00b7 issued "+(iv.issued||"")));
+      (iv.hours||0).toFixed(2)+" h \u00b7 issued "+mdyStr(iv.issued)));
     row.appendChild(body);
     row.onclick=function(){ openInvoice(iv) };
     row.tabIndex=0;
@@ -931,7 +938,7 @@ function paintSheet(){
                invoice:sheetInvoice,range:sheetRange,paste:sheetPaste}[d.kind];
   if(!builder){ closeSheet(); return }
   builder(sh,d);
-  tuneInputs(sh, d.kind==="client");
+  tuneInputs(sh);
   $("#scrim").hidden=false; document.body.style.overflow="hidden";
 }
 $("#scrim").addEventListener("click",function(e){
@@ -1025,33 +1032,39 @@ function keepList(sh,getList,setList,opts){
   }
   /* Drag a line by its handle. The DOM is reordered live; the array is
      rebuilt from the row indexes on release, so duplicate text is safe. */
+  /* Listeners go on the document, not the handle: pointer capture is not
+     reliable once the row is re-inserted mid-drag, and losing the move
+     events is what made this silently do nothing on a phone. */
   function startDrag(e,grip,li,ul,list){
-    e.preventDefault();
+    if(e.button&&e.button!==0) return;
+    e.preventDefault(); e.stopPropagation();
     li.classList.add("drag");
     try{grip.setPointerCapture(e.pointerId)}catch(err){}
     function move(ev){
-      var rows=Array.prototype.slice.call(ul.children);
+      if(ev.cancelable) ev.preventDefault();
+      var y=ev.clientY, rows=Array.prototype.slice.call(ul.children);
       for(var j=0;j<rows.length;j++){
         if(rows[j]===li) continue;
         var r=rows[j].getBoundingClientRect();
-        if(ev.clientY>=r.top&&ev.clientY<=r.bottom){
-          ul.insertBefore(li, ev.clientY<r.top+r.height/2 ? rows[j] : rows[j].nextSibling);
+        if(y>=r.top&&y<=r.bottom){
+          ul.insertBefore(li, y<r.top+r.height/2 ? rows[j] : rows[j].nextSibling);
           break;
         }
       }
     }
     function up(){
-      grip.removeEventListener("pointermove",move);
-      grip.removeEventListener("pointerup",up);
-      grip.removeEventListener("pointercancel",up);
+      document.removeEventListener("pointermove",move,{passive:false});
+      document.removeEventListener("pointerup",up);
+      document.removeEventListener("pointercancel",up);
       li.classList.remove("drag");
+      try{grip.releasePointerCapture(e.pointerId)}catch(err){}
       var order=Array.prototype.slice.call(ul.children).map(function(n){return +n.dataset.idx});
       var next=order.map(function(j){return list[j]}).filter(function(t){return t&&(t.t||"").trim()!==""});
       setList(next); touch(); paint();
     }
-    grip.addEventListener("pointermove",move);
-    grip.addEventListener("pointerup",up);
-    grip.addEventListener("pointercancel",up);
+    document.addEventListener("pointermove",move,{passive:false});
+    document.addEventListener("pointerup",up);
+    document.addEventListener("pointercancel",up);
   }
   paint(opts.autofocus?0:null);
   return {focusLast:function(){var i=box.querySelectorAll("input").length-1;paint(i)}};
@@ -1517,13 +1530,13 @@ function docCss(){return [
 ".invsheet .tag{text-align:right;flex:none}",
 ".invsheet .tag h1{margin:0 0 3px;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;",
 "  color:#666;font-weight:400}",
-".invsheet .tag .no{font-size:16px;font-weight:600}",
+".invsheet .tag .no{font-size:14px;font-weight:600}",
 ".invsheet .parties{margin:20px 0 0}",
 ".invsheet .parties h2{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#999;",
 "  margin:0 0 4px;font-weight:400}",
 ".invsheet .period{margin-top:16px;padding-top:10px;border-top:1px solid #eee;font-size:11px;color:#666;",
 "  text-transform:uppercase;letter-spacing:.08em}",
-".invsheet .log{margin-top:6px}",
+".invsheet .ilog{margin-top:6px}",
 ".invsheet .day{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #ccc;",
 "  padding:14px 0 4px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#666}",
 ".invsheet .blk{padding:8px 0 9px;border-bottom:1px solid #f0f0f0}",
@@ -1531,9 +1544,9 @@ function docCss(){return [
 ".invsheet .blk .tm{color:#333}",
 ".invsheet .blk .pl{color:#999;font-size:11px;flex:1;padding-left:10px}",
 ".invsheet .blk .hh{flex:none}",
-".invsheet .blk ul{margin:4px 0 0;padding:0 0 0 2ch;list-style:none;",
+".invsheet .blk ul{margin:4px 0 0;padding:0 0 0 2ch;list-style:none}",
+".invsheet .blk li{position:relative;padding-left:1.2ch;",
 "  font-size:11px;color:#666;line-height:1.5}",
-".invsheet .blk li{position:relative;padding-left:1.2ch}",
 ".invsheet .blk li:before{content:'·';position:absolute;left:0;color:#bbb}",
 ".invsheet .blk .nn{margin-left:2ch;color:#bbb;font-size:11px}",
 ".invsheet .totals{margin-top:20px;display:flex;justify-content:flex-end}",
@@ -1624,15 +1637,15 @@ function docBody(doc,client,list,preview){
   esc(biz.address||"")+(biz.email?"\n"+esc(biz.email):"")+(biz.phone?"\n"+esc(biz.phone):"")+
   '</div></div><div class="tag"><h1>'+(rep?"Work report":"Invoice")+'</h1>'+
   (rep?"":'<div class="no">'+esc(doc.number||"")+'</div>')+
-  '<div class="small">'+(rep?"As of ":"Issued ")+esc(doc.issued||"")+
-  (doc.due&&!rep?"\nDue "+esc(doc.due):"")+'</div></div></header>'+
+  '<div class="small">'+(rep?"As of ":"Issued ")+esc(mdyStr(doc.issued))+
+  (doc.due&&!rep?"\nDue "+esc(mdyStr(doc.due)):"")+'</div></div></header>'+
   '<div class="parties"><h2>'+(rep?"Prepared for":"Bill to")+'</h2>'+
   '<div style="font-size:13px">'+esc(client.name||"")+'</div><div class="small">'+
   esc(client.address||"")+(client.email?"\n"+esc(client.email):"")+'</div></div>'+
   '<div class="period">'+esc(dlong(sorted[0].start))+' &ndash; '+esc(dlong(sorted[sorted.length-1].start))+
   '  ·  '+sorted.length+' blocks  ·  '+doc.hours.toFixed(2)+' h  ·  '+
   (onsite&&remote?onsite+' on-site, '+remote+' remote':(remote?'all remote':'all on-site'))+'</div>'+
-  '<div class="log">'+logHtml+'</div>'+
+  '<div class="ilog">'+logHtml+'</div>'+
   '<div class="totals"><table>'+totals+'</table></div>'+
   ((doc.memo||(biz.terms&&!rep))?'<div class="memo">'+esc(doc.memo||"")+
     (doc.memo&&biz.terms&&!rep?"\n\n":"")+esc(rep?"":(biz.terms||""))+'</div>':"");
@@ -1788,8 +1801,7 @@ $("#pasteData").addEventListener("click",function(){openSheet({kind:"paste"})});
 document.addEventListener("keydown",function(e){
   if(e.key==="Escape"&&viewerState) hideViewer()});
 load();
-tuneInputs(document,false);
-tuneInputs($("#p-setup"),true);
+tuneInputs(document);
 showTab(UI.tab||"track");
 renderAll();
 restoreFolder();
