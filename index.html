@@ -335,7 +335,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.7.0";
+var VERSION="1.7.1";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -369,20 +369,24 @@ function startOfMonth(ms){var d=new Date(ms);return new Date(d.getFullYear(),d.g
 function hhmmss(ms){if(ms<0)ms=0;var s=Math.floor(ms/1000);
   return Math.floor(s/3600)+":"+pad(Math.floor(s%3600/60))+":"+pad(s%60)}
 function money(n){return (S.settings.currency||"$")+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
-/* Name + email + phone + address reads to Chrome as an address form, which
-   is what makes it offer to fill or save one. Nothing here should ever be
-   autofilled — it is your own business detail, typed once. */
-function deautofill(root){
+/* Autocorrect and autocapitalise off everywhere — notes are lower-case
+   shop shorthand and neither helps. Spellcheck and autocomplete are left
+   at the browser default, EXCEPT on setup and the client sheet: name +
+   email + phone + address is the shape Chrome reads as an address form,
+   and that is what made it interrupt with a save-address prompt. Nothing
+   there benefits from autofill anyway — it is your own detail, typed once. */
+function tuneInputs(root,noFill){
   var ns=(root||document).querySelectorAll("input,textarea,select");
   Array.prototype.forEach.call(ns,function(n){
-    n.setAttribute("autocomplete","off");
     n.setAttribute("autocorrect","off");
     n.setAttribute("autocapitalize","off");
-    n.setAttribute("spellcheck","false");
-    n.setAttribute("data-form-type","other");
-    n.setAttribute("data-lpignore","true");
-    if(n.type==="email"){ n.type="text"; n.setAttribute("inputmode","email"); }
-    if(!n.name) n.name="db-"+(n.id||Math.random().toString(36).slice(2,8));
+    n.removeAttribute("spellcheck");
+    if(noFill){
+      n.setAttribute("autocomplete","off");
+      n.setAttribute("data-form-type","other");
+      n.setAttribute("data-lpignore","true");
+      if(n.type==="email"){ n.type="text"; n.setAttribute("inputmode","email"); }
+    }
   });
 }
 function toast(m){var t=$("#toast");t.textContent=m;t.hidden=false;
@@ -927,7 +931,7 @@ function paintSheet(){
                invoice:sheetInvoice,range:sheetRange,paste:sheetPaste}[d.kind];
   if(!builder){ closeSheet(); return }
   builder(sh,d);
-  deautofill(sh);
+  tuneInputs(sh, d.kind==="client");
   $("#scrim").hidden=false; document.body.style.overflow="hidden";
 }
 $("#scrim").addEventListener("click",function(e){
@@ -1784,7 +1788,8 @@ $("#pasteData").addEventListener("click",function(){openSheet({kind:"paste"})});
 document.addEventListener("keydown",function(e){
   if(e.key==="Escape"&&viewerState) hideViewer()});
 load();
-deautofill();
+tuneInputs(document,false);
+tuneInputs($("#p-setup"),true);
 showTab(UI.tab||"track");
 renderAll();
 restoreFolder();
