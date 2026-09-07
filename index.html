@@ -338,7 +338,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.8.0";
+var VERSION="1.8.1";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -359,11 +359,16 @@ function ymd(ms){var d=new Date(ms);return d.getFullYear()+"-"+pad(d.getMonth()+
 /* "Sun Sept 06 2026" */
 function dlong(ms){var d=new Date(ms);
   return DOWS[d.getDay()]+" "+MONS[d.getMonth()]+" "+pad(d.getDate())+" "+d.getFullYear()}
-/* Invoice header dates read the way Eamon writes them: 09-06-2026.
-   The CSV keeps ISO, which is what sorts correctly in a spreadsheet. */
-function mdyStr(iso){
+/* Anything a person reads spells the month out — "Sept 07 2026" — matching
+   the day rows below it. Anything a machine sorts keeps ISO: the CSV date
+   column, the JSON, and the report filenames. A written month is unambiguous
+   across conventions, where 09-07 is not. */
+function dateWords(iso){
   var p=String(iso||"").split("-");
-  return p.length===3?p[1]+"-"+p[2]+"-"+p[0]:String(iso||"");
+  if(p.length!==3) return String(iso||"");
+  var mo=+p[1], da=+p[2];
+  if(!(mo>=1&&mo<=12)||!(da>=1&&da<=31)) return String(iso||"");
+  return MONS[mo-1]+" "+pad(da)+" "+p[0];
 }
 function dlongKey(k){var p=k.split("-");return dlong(new Date(+p[0],+p[1]-1,+p[2]).getTime())}
 /* "3:26p" / "7:17a" */
@@ -902,7 +907,7 @@ function renderInvoices(){
     body.appendChild(l1);
     body.appendChild(el("div","place",
       (S.clients[iv.clientId]?S.clients[iv.clientId].name:"—")+" \u00b7 "+
-      (iv.hours||0).toFixed(2)+" h \u00b7 issued "+mdyStr(iv.issued)));
+      (iv.hours||0).toFixed(2)+" h \u00b7 issued "+dateWords(iv.issued)));
     row.appendChild(body);
     row.onclick=function(){ openInvoice(iv) };
     row.tabIndex=0;
@@ -1637,8 +1642,8 @@ function docBody(doc,client,list,preview){
   esc(biz.address||"")+(biz.email?"\n"+esc(biz.email):"")+(biz.phone?"\n"+esc(biz.phone):"")+
   '</div></div><div class="tag"><h1>'+(rep?"Work report":"Invoice")+'</h1>'+
   (rep?"":'<div class="no">'+esc(doc.number||"")+'</div>')+
-  '<div class="small">'+(rep?"As of ":"Issued ")+esc(mdyStr(doc.issued))+
-  (doc.due&&!rep?"\nDue "+esc(mdyStr(doc.due)):"")+'</div></div></header>'+
+  '<div class="small">'+(rep?"As of ":"Issued ")+esc(dateWords(doc.issued))+
+  (doc.due&&!rep?"\nDue "+esc(dateWords(doc.due)):"")+'</div></div></header>'+
   '<div class="parties"><h2>'+(rep?"Prepared for":"Bill to")+'</h2>'+
   '<div style="font-size:13px">'+esc(client.name||"")+'</div><div class="small">'+
   esc(client.address||"")+(client.email?"\n"+esc(client.email):"")+'</div></div>'+
