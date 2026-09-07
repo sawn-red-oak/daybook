@@ -59,7 +59,8 @@ nav button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
 
 .panel{display:none;padding-top:22px} .panel.on{display:block}
 .sec{margin-top:28px}
-.sec>.h{margin-bottom:9px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sec>.h{margin-bottom:9px;display:flex;justify-content:space-between;align-items:baseline;
+  gap:4px 14px;flex-wrap:wrap}
 
 .clock{font-size:clamp(38px,12.5vw,50px);line-height:1.05;letter-spacing:-.01em}
 .clock.idle{color:var(--faint)}
@@ -151,12 +152,15 @@ select{appearance:none;padding-right:20px;
 .klist{margin:4px 0 0;padding:0;list-style:none}
 .klist li{display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--line);background:var(--bg)}
 .klist li.drag{opacity:.6;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+.klist li{transition:transform .16s cubic-bezier(.2,0,0,1)}
 .klist .grip{flex:none;color:var(--faint);cursor:grab;touch-action:none;
   display:flex;align-items:center;justify-content:center;
-  min-width:38px;min-height:44px;margin-left:-8px;font-size:19px;line-height:1;
+  min-width:44px;min-height:50px;margin-left:-12px;font-size:21px;line-height:1;
   user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 .klist .grip:active,.klist li.drag .grip{cursor:grabbing;color:var(--fg)}
-.klist li.drag{background:var(--surface,#141414);opacity:.9}
+.klist li.drag{transition:none;position:relative;z-index:3;will-change:transform;
+  background:#101010;border-bottom-color:var(--line-2);
+  box-shadow:0 8px 22px rgba(0,0,0,.75),0 0 0 1px var(--line-2)}
 .klist li.blank .grip{visibility:hidden}
 .klist li input{flex:1;min-width:0;border:0;background:none;padding:11px 0;font-size:var(--fs-lg)}
 .klist li input::placeholder{color:var(--faint)}
@@ -230,7 +234,9 @@ select{appearance:none;padding-right:20px;
     <div id="liveWrap"></div>
     <div class="tally" id="tally"></div>
     <div class="sec">
-      <div class="h"><span class="cap">recent</span><button class="btn bare" id="addManual">+ add entry</button></div>
+      <div class="h"><span class="cap">recent</span>
+        <span><button class="btn bare" id="addManual">+ add entry</button>
+        <button class="btn bare" id="pasteData" style="margin-left:16px">+ paste data</button></span></div>
       <div id="recent"></div>
     </div>
   </section>
@@ -318,7 +324,6 @@ select{appearance:none;padding-right:20px;
         <button class="btn" id="exportBackup">backup json</button>
         <button class="btn" id="writeMasters">write master sheets</button>
         <button class="btn" id="importBackup">import json</button>
-        <button class="btn" id="pasteData">paste data</button>
       </div>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
@@ -338,7 +343,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.8.2";
+var VERSION="1.9.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -1042,35 +1047,60 @@ function keepList(sh,getList,setList,opts){
   }
   /* Drag a line by its handle. The DOM is reordered live; the array is
      rebuilt from the row indexes on release, so duplicate text is safe. */
-  /* Listeners go on the document, not the handle: pointer capture is not
-     reliable once the row is re-inserted mid-drag, and losing the move
-     events is what made this silently do nothing on a phone. */
+  /* Keep-style drag. The row under the finger is translated to follow it
+     exactly and nothing else moves it; the rows it passes slide one slot
+     out of the way on a transition. The DOM order is left alone until
+     release, so nothing can be dropped mid-gesture — which is what made
+     the earlier hit-test version feel like it was fighting back.
+     Listeners live on the document: pointer capture alone is not enough. */
   function startDrag(e,grip,li,ul,list){
     if(e.button&&e.button!==0) return;
     e.preventDefault(); e.stopPropagation();
+    var rows=Array.prototype.slice.call(ul.children);
+    var from=rows.indexOf(li);
+    if(from<0) return;
+    var h=li.getBoundingClientRect().height||44;
+    /* the trailing blank line is not a slot you can drop into */
+    var last=rows.length-1;
+    while(last>0 && rows[last].classList.contains("blank")) last--;
+    var startY=e.clientY, to=from, moved=false;
     li.classList.add("drag");
     try{grip.setPointerCapture(e.pointerId)}catch(err){}
+
+    function place(){
+      rows.forEach(function(r,i){
+        if(i===from) return;
+        var shift=0;
+        if(from<to && i>from && i<=to) shift=-h;
+        else if(from>to && i>=to && i<from) shift=h;
+        r.style.transform=shift?"translateY("+shift+"px)":"";
+      });
+    }
     function move(ev){
       if(ev.cancelable) ev.preventDefault();
-      var y=ev.clientY, rows=Array.prototype.slice.call(ul.children);
-      for(var j=0;j<rows.length;j++){
-        if(rows[j]===li) continue;
-        var r=rows[j].getBoundingClientRect();
-        if(y>=r.top&&y<=r.bottom){
-          ul.insertBefore(li, y<r.top+r.height/2 ? rows[j] : rows[j].nextSibling);
-          break;
-        }
-      }
+      var dy=ev.clientY-startY;
+      if(!moved && Math.abs(dy)<2) return;
+      moved=true;
+      li.style.transform="translateY("+dy+"px)";
+      var t=Math.max(0,Math.min(last,from+Math.round(dy/h)));
+      if(t!==to){ to=t; place(); }
     }
     function up(){
       document.removeEventListener("pointermove",move,{passive:false});
       document.removeEventListener("pointerup",up);
       document.removeEventListener("pointercancel",up);
-      li.classList.remove("drag");
       try{grip.releasePointerCapture(e.pointerId)}catch(err){}
-      var order=Array.prototype.slice.call(ul.children).map(function(n){return +n.dataset.idx});
-      var next=order.map(function(j){return list[j]}).filter(function(t){return t&&(t.t||"").trim()!==""});
-      setList(next); touch(); paint();
+      rows.forEach(function(r){r.style.transform=""});
+      li.classList.remove("drag");
+      if(to!==from){
+        var order=rows.map(function(r){return +r.dataset.idx});
+        var pick=order.splice(from,1)[0];
+        order.splice(to,0,pick);
+        var next=order.map(function(j){return list[j]})
+          .filter(function(t){return t&&(t.t||"").trim()!==""});
+        setList(next); touch();
+      }
+      paint();
     }
     document.addEventListener("pointermove",move,{passive:false});
     document.addEventListener("pointerup",up);
