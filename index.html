@@ -24,6 +24,9 @@
   --fs-lg:16px;    /* nav, inputs, sheet titles */
 }
 *{box-sizing:border-box}
+/* .two{display:grid} and .field{display:block} outrank the UA rule for
+   [hidden], so anything hidden by attribute needs this to actually go away. */
+[hidden]{display:none!important}
 html{background:var(--bg)}
 body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:var(--fs-md);line-height:1.6;
   font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;margin:0;
@@ -94,8 +97,9 @@ nav button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
 .empty{color:var(--faint);padding:16px 0;font-size:var(--fs-sm)}
 
 .opts{display:flex;flex-wrap:wrap;gap:0 16px}
-.opt{background:none;border:0;padding:5px 0;cursor:pointer;color:var(--faint);
-  border-bottom:1px solid transparent;font-variant:small-caps;letter-spacing:.05em;font-size:var(--fs-sm)}
+.opt{background:none;border:0;padding:6px 0;cursor:pointer;color:var(--faint);
+  border-bottom:1px solid transparent;font-variant:small-caps;font-variant-caps:all-small-caps;
+  letter-spacing:.09em;font-size:var(--fs-md)}
 .opt[aria-pressed="true"]{color:var(--fg);border-bottom-color:var(--line-2)}
 .field{display:block;margin-top:16px}
 .field>span{display:block;color:var(--faint);margin-bottom:5px;
@@ -328,7 +332,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.4.0";
+var VERSION="1.5.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -737,7 +741,7 @@ function logList(list,selectable){
 }
 
 /* ---------- render: blocks ---------- */
-var range={mode:"month",from:null,to:null},filtClient="";
+var range={mode:"unbilled",from:null,to:null},filtClient="";
 var RANGES=[["today","today"],["week","this week"],["lastweek","last week"],["month","this month"],
             ["lastmonth","last month"],["unbilled","un-invoiced"],["billed","invoiced"],
             ["all","all"],["custom","custom"]];
@@ -1503,10 +1507,11 @@ function docCss(){return [
 ".invsheet .blk .tm{color:#333}",
 ".invsheet .blk .pl{color:#999;font-size:11px;flex:1;padding-left:10px}",
 ".invsheet .blk .hh{flex:none}",
-".invsheet .blk ul{margin:3px 0 0;padding:0 0 0 2ch;list-style:none}",
+".invsheet .blk ul{margin:4px 0 0;padding:0 0 0 2ch;list-style:none;",
+"  font-size:11px;color:#666;line-height:1.5}",
 ".invsheet .blk li{position:relative;padding-left:1.2ch}",
-".invsheet .blk li:before{content:'·';position:absolute;left:0;color:#aaa}",
-".invsheet .blk .nn{margin-left:2ch;color:#aaa}",
+".invsheet .blk li:before{content:'·';position:absolute;left:0;color:#bbb}",
+".invsheet .blk .nn{margin-left:2ch;color:#bbb;font-size:11px}",
 ".invsheet .totals{margin-top:20px;display:flex;justify-content:flex-end}",
 ".invsheet .totals table{border-collapse:collapse;min-width:260px}",
 ".invsheet .totals td{padding:5px 0 5px 18px;text-align:right}",
