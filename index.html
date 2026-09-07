@@ -343,7 +343,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.9.0";
+var VERSION="1.9.1";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -1301,7 +1301,7 @@ function sheetPaste(sh,d){
   lbl.appendChild(segmented(plc,function(v){plc=v;d.draft.place=v;touch()}));
   sh.appendChild(lbl);
 
-  var ta=el("textarea");ta.rows=6;ta.placeholder="Mon 8/31 in 930a, out at 1p";
+  var ta=el("textarea");ta.rows=6;
   fieldOf(sh,"paste here",ta); bindDraft(ta,"text");
   var out=el("div","note"); sh.appendChild(out);
   var found=[];
