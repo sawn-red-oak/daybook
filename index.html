@@ -16,6 +16,7 @@
   color-scheme:dark;
   --bg:#000000; --fg:#E9E9E6; --dim:#7E7E78; --faint:#4A4A45;
   --line:#242422; --line-2:#3A3A36;
+  --online:#5CBF7A;   /* the only colour in the app */
   --f:ui-monospace,'Cascadia Mono','Segoe UI Mono','Roboto Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace;
   /* one type scale, used everywhere */
   --fs-xs:12px;    /* hints, sub-lines, meta */
@@ -46,7 +47,9 @@ body>header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:
 body>header .wrap{padding-top:16px;padding-bottom:0}
 .title{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 .title b{font-weight:600;text-transform:uppercase;letter-spacing:.16em;font-size:var(--fs-lg)}
-.title .st{color:var(--faint);font-size:var(--fs-xs);font-variant:small-caps;letter-spacing:.05em}
+.title .st{color:var(--faint);font-size:var(--fs-xs);letter-spacing:.05em;
+  font-variant:small-caps;font-variant-caps:all-small-caps}
+.title .st.up{color:var(--online)}
 nav{display:flex;gap:22px;margin-top:14px;overflow-x:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
 nav button{background:none;border:0;padding:6px 0 9px;cursor:pointer;color:var(--faint);
@@ -205,7 +208,7 @@ select{appearance:none;padding-right:20px;
 
 <header>
   <div class="wrap">
-    <div class="title"><b>daybook</b><span class="st" id="st">offline</span></div>
+    <div class="title"><b>daybook</b><span class="st" id="st">&nbsp;</span></div>
     <nav role="tablist">
       <button role="tab" aria-selected="true" data-tab="track">track</button>
       <button role="tab" aria-selected="false" data-tab="blocks">blocks</button>
@@ -332,7 +335,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.5.0";
+var VERSION="1.6.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -1782,6 +1785,20 @@ document.addEventListener("visibilitychange",function(){
 });
 window.addEventListener("pagehide",persist);
 window.addEventListener("blur",persist);
+
+/* ---------- connectivity ---------- */
+/* navigator.onLine reports whether the device has a network interface, not
+   whether the internet is actually reachable — a captive wifi still reads
+   online. Good enough to tell you whether a push will be picked up. */
+function paintNet(){
+  var up=navigator.onLine!==false, n=$("#st");
+  n.textContent=up?"online":"offline";
+  n.classList.toggle("up",up);
+}
+window.addEventListener("online",paintNet);
+window.addEventListener("offline",paintNet);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)paintNet()});
+paintNet();
 
 /* ---------- service worker ---------- */
 if("serviceWorker" in navigator){
