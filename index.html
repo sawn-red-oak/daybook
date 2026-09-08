@@ -343,7 +343,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.9.1";
+var VERSION="1.10.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -1114,11 +1114,19 @@ function keepList(sh,getList,setList,opts){
 function sheetLive(sh,d){
   head(sh,d.first?"clocking in":"working on");
   sh.appendChild(el("div","note",d.first
-    ? "Started "+t12(S.active.start)+". Jot what you're setting out to do — you can add lines any time, and again when you clock out."
-    : "Running "+hhmmss(now()-S.active.start)+" since "+t12(S.active.start)+"."));
+    ? "Jot what you're setting out to do — you can add lines any time, and again when you clock out."
+    : "Running "+hhmmss(now()-S.active.start)+"."));
   var lbl=el("div","field");lbl.appendChild(el("span",null,"location"));
   lbl.appendChild(segmented(S.active.place,function(v){S.active.place=v;save();renderTrack()}));
   sh.appendChild(lbl);
+  /* Same calendar as everywhere else, open by default: you rarely notice
+     you are late to the clock until after you have pressed it. */
+  sh.appendChild(el("div","field")).appendChild(el("span",null,"when this started"));
+  var startCal=calendar({start:S.active.start,end:S.active.start,single:true,
+    onChange:function(st){
+      if(st!==S.active.start){ S.active.start=st; save(); renderTrack(); }
+    }});
+  sh.appendChild(startCal.node);
   sh.appendChild(el("div","field")).appendChild(el("span",null,"notes"));
   keepList(sh,function(){return S.active.tasks},
     function(l){S.active.tasks=l;save();renderTrack()},
@@ -1136,27 +1144,15 @@ function sheetStop(sh,d){
   head(sh,"what did you work on?",false);
   var cur=[S.active.start, d.end];
   if(d.draft.s!=null&&d.draft.e!=null) cur=[d.draft.s,d.draft.e];
-  var span=el("div","note");span.style.marginTop="0";
-  var calWrap=el("div");calWrap.hidden=!d.draft.calOpen;
-  var edit=el("button","btn bare","edit times");edit.type="button";edit.style.padding="4px 0";
-  var cal=null;
-  function summarise(){span.textContent=t12(cur[0])+" – "+t12(cur[1])+"   "+
-    fmtH(roundHours((cur[1]-cur[0])/3600000))+" h   "+placeLabel(S.active.place).toLowerCase()}
-  function mountCal(){
-    if(cal)return;
-    cal=calendar({start:cur[0],end:cur[1],onChange:function(s,e){
-      cur=[s,e];d.draft.s=s;d.draft.e=e;touch();summarise()}});
-    calWrap.appendChild(cal.node);
-  }
-  summarise();
-  sh.appendChild(span);
   var lbl=el("div","field");lbl.appendChild(el("span",null,"location"));
-  lbl.appendChild(segmented(S.active.place,function(v){S.active.place=v;save();summarise()}));
+  lbl.appendChild(segmented(S.active.place,function(v){S.active.place=v;save()}));
   sh.appendChild(lbl);
-  sh.appendChild(edit);sh.appendChild(calWrap);
-  if(d.draft.calOpen){mountCal();edit.textContent="hide"}
-  edit.onclick=function(){mountCal();calWrap.hidden=!calWrap.hidden;
-    d.draft.calOpen=!calWrap.hidden;touch();edit.textContent=calWrap.hidden?"edit times":"hide"};
+  /* Open, not behind a toggle: forgetting to stop on time is the common
+     case, so the correction should be the first thing in reach. */
+  sh.appendChild(el("div","field")).appendChild(el("span",null,"times"));
+  var cal=calendar({start:cur[0],end:cur[1],onChange:function(s2,e2){
+    cur=[s2,e2];d.draft.s=s2;d.draft.e=e2;touch()}});
+  sh.appendChild(cal.node);
 
   sh.appendChild(el("div","field")).appendChild(el("span",null,"worked on"));
   var kl=keepList(sh,function(){return S.active.tasks},function(l){S.active.tasks=l;save()},
@@ -1178,7 +1174,6 @@ function sheetStop(sh,d){
     trash.dataset.armed="1";trash.textContent="discard — tap again"};
   btns.appendChild(trash);
   sh.appendChild(btns);
-  setTimeout(function(){try{ta.focus()}catch(e){}},80);
 }
 
 /* --- add / edit an entry --- */
@@ -1383,32 +1378,43 @@ function calendar(opts){
   head1.appendChild(prev);head1.appendChild(label);head1.appendChild(next);root.appendChild(head1);
   var dow=el("div","dow");DOW2.forEach(function(x){dow.appendChild(el("span",null,x))});root.appendChild(dow);
   var grid=el("div","grid");root.appendChild(grid);
-  var tS=null,tE=null,sum=null;
+  var tS=null,tE=null,sum=null,single=!!opts.single;
   if(opts.times!==false){
     var two=el("div","two");two.style.marginTop="4px";
     tS=el("input");tS.type="time";tS.value=hm24(st.start);
-    tE=el("input");tE.type="time";tE.value=hm24(st.end);
-    var l1=el("label","field");l1.appendChild(el("span",null,"start"));l1.appendChild(tS);
-    var l2=el("label","field");l2.appendChild(el("span",null,"end"));l2.appendChild(tE);
-    two.appendChild(l1);two.appendChild(l2);root.appendChild(two);
+    var l1=el("label","field");l1.appendChild(el("span",null,single?"started at":"start"));
+    l1.appendChild(tS);two.appendChild(l1);
+    if(!single){
+      tE=el("input");tE.type="time";tE.value=hm24(st.end);
+      var l2=el("label","field");l2.appendChild(el("span",null,"end"));l2.appendChild(tE);
+      two.appendChild(l2);
+    }
+    root.appendChild(two);
     sum=el("div","sum");root.appendChild(sum);
-    [tS,tE].forEach(function(n){n.addEventListener("input",commit)});
+    [tS,tE].forEach(function(n){if(n)n.addEventListener("input",commit)});
   }
   prev.onclick=function(){var d=new Date(st.month);st.month=new Date(d.getFullYear(),d.getMonth()-1,1).getTime();draw()};
   next.onclick=function(){var d=new Date(st.month);st.month=new Date(d.getFullYear(),d.getMonth()+1,1).getTime();draw()};
   function readTimes(){
     if(!tS)return[st.start,st.end];
-    var d=new Date(st.start),a=tS.value.split(":"),z=tE.value.split(":");
+    var d=new Date(st.start),a=tS.value.split(":");
     var s=new Date(d.getFullYear(),d.getMonth(),d.getDate(),+a[0]||0,+a[1]||0).getTime();
+    if(!tE) return[s,s];
+    var z=tE.value.split(":");
     var e=new Date(d.getFullYear(),d.getMonth(),d.getDate(),+z[0]||0,+z[1]||0).getTime();
     if(e<=s)e+=864e5; return[s,e]}
   function commit(){
     var t=readTimes();st.start=t[0];st.end=t[1];
     if(sum){sum.innerHTML="";
-      var h=(st.end-st.start)/3600000;
-      sum.appendChild(el("span",null,dlong(st.start)+(st.end-st.start>=864e5?" → next day":"")));
-      var r=el("span");r.appendChild(document.createTextNode(t12(st.start)+"–"+t12(st.end)+"  "));
-      r.appendChild(el("b",null,fmtH(roundHours(h))+" h"));sum.appendChild(r)}
+      sum.appendChild(el("span",null,dlong(st.start)+
+        (!single&&st.end-st.start>=864e5?" → next day":"")));
+      var r=el("span");
+      if(single){ r.appendChild(el("b",null,t12(st.start))); }
+      else{
+        r.appendChild(document.createTextNode(t12(st.start)+"–"+t12(st.end)+"  "));
+        r.appendChild(el("b",null,fmtH(roundHours((st.end-st.start)/3600000))+" h"));
+      }
+      sum.appendChild(r)}
     if(opts.onChange)opts.onChange(st.start,st.end)}
   function pick(dayMs){
     var d=new Date(dayMs),s=new Date(st.start),span=st.end-st.start;
