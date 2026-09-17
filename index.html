@@ -117,7 +117,7 @@ select{appearance:none;padding-right:20px;
   background-position:calc(100% - 9px) 19px,calc(100% - 5px) 19px;background-size:4px 4px;background-repeat:no-repeat}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 .btn{background:var(--bg);color:var(--fg);border:1px solid var(--line-2);padding:12px 16px;cursor:pointer;
-  font-variant:small-caps;letter-spacing:.05em;font-size:var(--fs-sm)}
+  font-variant:small-caps;letter-spacing:.05em;font-size:var(--fs-sm);white-space:nowrap}
 .btn:hover{border-color:var(--dim)}
 .btn.solid{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:500}
 .btn.bare{border-color:transparent;color:var(--dim);padding:12px 0}
@@ -168,6 +168,15 @@ select{appearance:none;padding-right:20px;
   padding:9px 2px;font-size:var(--fs-lg);line-height:1}
 .klist .x:hover{color:var(--fg)}
 .khint{color:var(--faint);font-size:var(--fs-xs);margin-top:8px;line-height:1.55}
+.item{border:1px solid var(--line);padding:2px 12px 11px;margin-top:12px}
+.item .three{display:grid;grid-template-columns:1.1fr .9fr 1.1fr;gap:0 12px}
+.item .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-top:11px;border-top:1px solid var(--line);padding-top:8px}
+.item .del{background:none;border:0;color:var(--faint);cursor:pointer;font-size:var(--fs-lg);padding:4px 6px 4px 0}
+.item .del:hover{color:var(--fg)}
+.subtot{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;
+  padding-top:11px;border-top:1px solid var(--line-2)}
+.subtot b{font-weight:600;font-size:var(--fs-lg)}
 
 .cal{margin-top:6px;border:1px solid var(--line);padding:12px 12px 8px}
 .cal .mo{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
@@ -200,9 +209,9 @@ select{appearance:none;padding-right:20px;
 #viewer{position:fixed;inset:0;z-index:60;background:#eeedea;overflow-y:auto;display:none}
 #viewer.on{display:block}
 .vbar{position:sticky;top:0;z-index:2;background:var(--bg);border-bottom:1px solid var(--line-2);
-  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;gap:10px;
-  align-items:center;justify-content:space-between}
-.vbar .grow{flex:1}
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;gap:8px;
+  align-items:center;flex-wrap:wrap}
+.vbar .btn{padding:10px 13px}
 @media print{
   body>header,body>main,body>.scrim,body>.toast,.vbar{display:none!important}
   html,body{background:#fff!important}
@@ -219,6 +228,7 @@ select{appearance:none;padding-right:20px;
     <nav role="tablist">
       <button role="tab" aria-selected="true" data-tab="track">track</button>
       <button role="tab" aria-selected="false" data-tab="blocks">blocks</button>
+      <button role="tab" aria-selected="false" data-tab="quotes">quotes</button>
       <button role="tab" aria-selected="false" data-tab="invoices">invoices</button>
       <button role="tab" aria-selected="false" data-tab="setup">setup</button>
     </nav>
@@ -264,6 +274,14 @@ select{appearance:none;padding-right:20px;
         <button class="btn solid grow" id="btnInv">generate invoice</button>
       </div>
     </div>
+  </section>
+
+  <section class="panel" id="p-quotes">
+    <div class="h" style="display:flex;justify-content:space-between">
+      <span class="cap">quotes</span>
+      <span><button class="btn bare" id="addQuote">+ new quote</button>
+      <button class="btn bare" id="qFromTpl" style="margin-left:16px">from template</button></span></div>
+    <div id="quoteList"></div>
   </section>
 
   <section class="panel" id="p-invoices">
@@ -313,6 +331,10 @@ select{appearance:none;padding-right:20px;
         <label class="field"><span>invoices subfolder</span><input type="text" id="setInvDir"></label>
         <label class="field"><span>data subfolder</span><input type="text" id="setDataDir"></label>
       </div>
+      <div class="two">
+        <label class="field"><span>quotes subfolder</span><input type="text" id="setQuoteDir"></label>
+        <label class="field"><span>quote valid (days)</span><input type="number" id="setQuoteValid" min="0" step="1"></label>
+      </div>
       <label class="field"><span>default location for new entries</span>
         <select id="setPlace"><option value="onsite">on-site</option><option value="remote">remote</option></select></label>
     </div>
@@ -320,6 +342,7 @@ select{appearance:none;padding-right:20px;
     <div class="sec">
       <div class="h"><span class="cap">everything</span></div>
       <div class="btns" style="margin-top:6px">
+        <button class="btn" id="manageTpl">quote templates</button>
         <button class="btn" id="exportAll">export all blocks</button>
         <button class="btn" id="exportBackup">backup json</button>
         <button class="btn" id="writeMasters">write master sheets</button>
@@ -431,6 +454,7 @@ function load(){
       S.business=Object.assign(defaults().business,p.business||{});
       S.settings=Object.assign(defaults().settings,p.settings||{});
       S.active=p.active||null; S.months=p.months||{}; S.invoices=p.invoices||{};
+      S.quotes=p.quotes||{}; S.qtemplates=p.qtemplates||{};
     }}}catch(e){}
   try{var u=localStorage.getItem(LSUI); if(u){var q=JSON.parse(u); if(q&&typeof q==="object") UI=Object.assign(UI,q)}}catch(e){}
   migrate();
@@ -447,6 +471,9 @@ function migrate(){
   for(var cid in S.clients){ var c=S.clients[cid];
     if(c && c.prefix===undefined){
       c.prefix=S.settings.prefix||""; c.next=+S.settings.next||1; c.pad=3;
+    }
+    if(c && c.qprefix===undefined){
+      c.qprefix=(c.prefix||"")+"Q"; c.qnext=1; c.qpad=3;
     }}
 }
 
@@ -480,6 +507,16 @@ function nextNumber(c){
   if(!c) return "";
   var pad=+c.pad||3, n=+c.next||1;
   return (c.prefix||"")+String(n).padStart(pad,"0");
+}
+function nextQuoteNumber(c){
+  if(!c) return "";
+  return (c.qprefix||"")+String(+c.qnext||1).padStart(+c.qpad||3,"0");
+}
+function advanceQuoteNumber(c,used){
+  var m=/^(.*?)(\d+)\s*$/.exec(String(used||""));
+  if(m){ c.qprefix=m[1]; c.qpad=m[2].length; c.qnext=parseInt(m[2],10)+1; }
+  else { c.qnext=(+c.qnext||0)+1; }
+  c.updatedAt=now(); S.clients[c.id]=c;
 }
 function advanceNumber(c,used){
   var m=/^(.*?)(\d+)\s*$/.exec(String(used||""));
@@ -671,6 +708,27 @@ function parseLog(text,ref){
   });
   return {blocks:out,bad:bad};
 }
+
+/* ---------- quotes ---------- */
+function itemAmount(it){
+  var q=parseFloat(it.qty), r=parseFloat(it.rate);
+  if(!isFinite(q)||!isFinite(r)) return 0;
+  return Math.round(q*r*100)/100;
+}
+function quoteTotal(qd){
+  if(qd.mode==="lump") return Math.round((parseFloat(qd.lump)||0)*100)/100;
+  return Math.round((qd.items||[]).reduce(function(a,it){return a+itemAmount(it)},0)*100)/100;
+}
+function depositAmount(qd){
+  var t=quoteTotal(qd), v=parseFloat(qd.depValue);
+  if(!isFinite(v)||v<=0) return 0;
+  return Math.round((qd.depType==="fixed"?v:t*v/100)*100)/100;
+}
+function liveQuotes(){
+  return Object.keys(S.quotes).map(function(k){return S.quotes[k]})
+    .sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0)});
+}
+var QSTATUS=["draft","sent","accepted","declined"];
 
 /* ---------- render: track ---------- */
 var ticker=null;
@@ -896,9 +954,11 @@ function renderSetup(){
   $("#setPlace").value=S.settings.place||"onsite";
   $("#setInvDir").value=S.settings.invoiceDir||"Daybook Invoices";
   $("#setDataDir").value=S.settings.dataDir||"Daybook Data";
+  $("#setQuoteDir").value=S.settings.quoteDir||"Daybook Quotes";
+  $("#setQuoteValid").value=S.settings.quoteValid==null?30:S.settings.quoteValid;
   $("#ver").textContent=VERSION;
 }
-function renderAll(){renderTrack();renderBlocks();renderInvoices();renderSetup()}
+function renderAll(){renderTrack();renderBlocks();renderQuotes();renderInvoices();renderSetup()}
 
 /* ---------- render: invoices ---------- */
 function renderInvoices(){
@@ -950,7 +1010,8 @@ function paintSheet(){
   if(!d){ $("#scrim").hidden=true; return }
   var sh=$("#sheet"); sh.innerHTML="";
   var builder={client:sheetClient,entry:sheetEntry,stop:sheetStop,live:sheetLive,
-               invoice:sheetInvoice,range:sheetRange,paste:sheetPaste}[d.kind];
+               invoice:sheetInvoice,range:sheetRange,paste:sheetPaste,
+               quote:sheetQuote,templates:sheetTemplates}[d.kind];
   if(!builder){ closeSheet(); return }
   builder(sh,d);
   tuneInputs(sh);
@@ -1280,6 +1341,289 @@ function sheetClient(sh,d){
   setTimeout(function(){try{if(isNew)n.focus()}catch(e){}},60);
 }
 
+/* ---------- quote line items ---------- */
+function itemEditor(sh,get,set,onChange){
+  var box=el("div"); sh.appendChild(box);
+  function amtNodes(){ return box.querySelectorAll(".item .amt") }
+  function refresh(){
+    var list=get(), ns=amtNodes();
+    Array.prototype.forEach.call(ns,function(n,i){ if(list[i]) n.textContent=money(itemAmount(list[i])) });
+    if(onChange) onChange();
+  }
+  function field(parent,label,node){
+    var l=el("label","field");l.appendChild(el("span",null,label));l.appendChild(node);
+    parent.appendChild(l);return node;
+  }
+  function paint(){
+    box.innerHTML="";
+    var list=get();
+    list.forEach(function(it,i){
+      var card=el("div","item");
+      var di=field(card,"description",inp("text",it.desc||"",""));
+      di.addEventListener("input",function(){it.desc=di.value;set(list);touch()});
+      var g=el("div","three");
+      ["qty","unit","rate"].forEach(function(key){
+        var n=el("input");
+        if(key==="unit"){ n.type="text"; n.maxLength=6; }
+        else { n.type="number"; n.step="any"; n.setAttribute("inputmode","decimal"); }
+        n.value=it[key]==null?"":it[key];
+        n.addEventListener("input",function(){it[key]=n.value;set(list);touch();refresh()});
+        field(g,key,n);
+      });
+      card.appendChild(g);
+      var foot=el("div","foot");
+      var del=el("button","del","\u00d7");del.type="button";
+      del.setAttribute("aria-label","remove line");
+      del.onclick=function(){var l2=get().slice();l2.splice(i,1);set(l2);touch();paint()};
+      foot.appendChild(del);
+      foot.appendChild(el("span","amt",money(itemAmount(it))));
+      card.appendChild(foot);
+      box.appendChild(card);
+    });
+    var add=el("button","btn bare","+ add line");add.type="button";
+    add.onclick=function(){
+      var l2=get().slice();l2.push({desc:"",qty:"",unit:"",rate:""});set(l2);touch();paint()};
+    box.appendChild(add);
+    refresh();
+  }
+  paint();
+  return {paint:paint,refresh:refresh};
+}
+
+/* ---------- the quote sheet ---------- */
+function sheetQuote(sh,d){
+  var cs=liveClients();
+  if(!cs.length){ closeSheet(); toast("add a client in setup first"); return }
+  var isNew=!d.id, q;
+  if(isNew){
+    if(!d.draft.rec){
+      var b=d.tpl||{};
+      var c0=cs[0]||{};
+      d.draft.rec={
+        id:uid(), quote:true, clientId:c0.id||"", number:nextQuoteNumber(c0),
+        title:b.title||"", mode:b.mode||"items",
+        items:(b.items||[]).map(function(it){return {desc:it.desc,qty:it.qty,unit:it.unit,rate:it.rate}}),
+        scope:(b.scope||[]).map(function(x){return {t:x.t}}),
+        lump:b.lump||"", issued:ymd(now()),
+        valid:ymd(addDays(now(),+S.settings.quoteValid||30)),
+        depType:b.depType||"pct", depValue:b.depValue||"",
+        lead:b.lead||"", exclusions:(b.exclusions||[]).map(function(x){return {t:x.t}}),
+        notes:b.notes||"", status:"draft", fromTpl:(d.tpl&&d.tpl.name)||""
+      };
+      if(!d.draft.rec.items.length) d.draft.rec.items=[{desc:"",qty:"",unit:"",rate:""}];
+    }
+    q=d.draft.rec;
+  }else{
+    if(!S.quotes[d.id]){ closeSheet(); return }
+    if(!d.draft.rec) d.draft.rec=JSON.parse(JSON.stringify(S.quotes[d.id]));
+    q=d.draft.rec;
+  }
+  head(sh,isNew?"new quote":"edit quote");
+  if(q.fromTpl) sh.appendChild(el("div","khint","from template: "+q.fromTpl));
+
+  var sc=el("select");
+  cs.forEach(function(c){var o=el("option",null,c.name);o.value=c.id;sc.appendChild(o)});
+  sc.value=q.clientId;
+  if(cs.length>1) fieldOf(sh,"client",sc);
+
+  var numIn=fieldOf(sh,"quote number",inp("text",q.number||"",""));
+  numIn.addEventListener("input",function(){q.number=numIn.value;d.draft.numTouched=true;touch()});
+  sc.addEventListener("change",function(){
+    q.clientId=sc.value;
+    if(isNew&&!d.draft.numTouched){ q.number=nextQuoteNumber(S.clients[sc.value]); numIn.value=q.number; }
+    touch();
+  });
+
+  var ti=fieldOf(sh,"title",inp("text",q.title||"",""));
+  ti.addEventListener("input",function(){q.title=ti.value;touch()});
+
+  var mf=el("div","field");mf.appendChild(el("span",null,"pricing"));
+  var mseg=el("div","seg");
+  [["items","itemised"],["lump","lump sum"]].forEach(function(o,i){
+    var bt=el("button",null,o[1]);bt.type="button";
+    bt.setAttribute("aria-pressed",q.mode===o[0]?"true":"false");
+    bt.onclick=function(){
+      q.mode=o[0];touch();
+      Array.prototype.forEach.call(mseg.children,function(x,j){
+        x.setAttribute("aria-pressed",(j===i)?"true":"false")});
+      paintBody();
+    };
+    mseg.appendChild(bt);
+  });
+  mf.appendChild(mseg);sh.appendChild(mf);
+
+  var bodyBox=el("div");sh.appendChild(bodyBox);
+  var totLine=el("div","subtot");sh.appendChild(totLine);
+  function paintTotal(){
+    totLine.innerHTML="";
+    var t=quoteTotal(q), dep=depositAmount(q);
+    totLine.appendChild(el("span","sc",dep>0?("total \u00b7 deposit "+money(dep)):"total"));
+    totLine.appendChild(el("b",null,money(t)));
+  }
+  function paintBody(){
+    bodyBox.innerHTML="";
+    if(q.mode==="lump"){
+      bodyBox.appendChild(el("div","field")).appendChild(el("span",null,"scope \u2014 what's included"));
+      keepList(bodyBox,function(){return q.scope||[]},function(l){q.scope=l;touch();},
+        {placeholder:"add a line"});
+      bodyBox.appendChild(el("div","khint","Enter starts a new line."));
+      var li=el("input");li.type="number";li.step="any";li.setAttribute("inputmode","decimal");
+      li.value=q.lump==null?"":q.lump;
+      var lw=el("label","field");lw.appendChild(el("span",null,"price"));lw.appendChild(li);
+      bodyBox.appendChild(lw);
+      li.addEventListener("input",function(){q.lump=li.value;touch();paintTotal()});
+    }else{
+      bodyBox.appendChild(el("div","field")).appendChild(el("span",null,"line items"));
+      itemEditor(bodyBox,function(){return q.items||[]},function(l){q.items=l},paintTotal);
+    }
+    paintTotal();
+  }
+  paintBody();
+
+  var two=el("div","two");
+  var iss=inp("date",q.issued||ymd(now())), val=inp("date",q.valid||"");
+  var l1=el("label","field");l1.appendChild(el("span",null,"issued"));l1.appendChild(iss);
+  var l2=el("label","field");l2.appendChild(el("span",null,"valid until"));l2.appendChild(val);
+  two.appendChild(l1);two.appendChild(l2);sh.appendChild(two);
+  iss.addEventListener("input",function(){q.issued=iss.value;touch()});
+  val.addEventListener("input",function(){q.valid=val.value;touch()});
+
+  var df=el("div","field");df.appendChild(el("span",null,"deposit"));
+  var dseg=el("div","seg");
+  [["pct","percent"],["fixed","fixed amount"]].forEach(function(o,i){
+    var bt=el("button",null,o[1]);bt.type="button";
+    bt.setAttribute("aria-pressed",(q.depType||"pct")===o[0]?"true":"false");
+    bt.onclick=function(){q.depType=o[0];touch();
+      Array.prototype.forEach.call(dseg.children,function(x,j){
+        x.setAttribute("aria-pressed",(j===i)?"true":"false")});
+      paintTotal()};
+    dseg.appendChild(bt);
+  });
+  df.appendChild(dseg);sh.appendChild(df);
+  var dv=el("input");dv.type="number";dv.step="any";dv.setAttribute("inputmode","decimal");
+  dv.value=q.depValue==null?"":q.depValue;
+  var dl=el("label","field");dl.appendChild(el("span",null,"deposit value"));dl.appendChild(dv);
+  sh.appendChild(dl);
+  dv.addEventListener("input",function(){q.depValue=dv.value;touch();paintTotal()});
+  sh.appendChild(el("div","khint","Leave the value blank for no deposit line."));
+
+  var ld=fieldOf(sh,"lead time",inp("text",q.lead||"",""));
+  ld.addEventListener("input",function(){q.lead=ld.value;touch()});
+
+  sh.appendChild(el("div","field")).appendChild(el("span",null,"not included"));
+  keepList(sh,function(){return q.exclusions||[]},function(l){q.exclusions=l;touch()},
+    {placeholder:"add a line"});
+  sh.appendChild(el("div","khint","The field that prevents arguments later \u2014 delivery, site measure, changes after sign-off."));
+
+  var nt=el("textarea");nt.rows=3;nt.value=q.notes||"";
+  fieldOf(sh,"notes",nt);
+  nt.addEventListener("input",function(){q.notes=nt.value;touch()});
+
+  var btns=el("div","btns");
+  var pv=el("button","btn grow","preview");pv.type="button";
+  pv.onclick=function(){
+    var snap=JSON.parse(JSON.stringify(q));
+    UI.sheet=null;saveUI();closeSheet();
+    showViewer(snap,S.clients[q.clientId]||{name:"client"},[],true)};
+  btns.appendChild(pv);
+  var sv=el("button","btn solid grow","save");sv.type="button";
+  sv.onclick=function(){
+    if(!q.clientId){toast("pick a client");return}
+    q.number=(numIn.value||"").trim();
+    q.updatedAt=now();
+    if(isNew){
+      q.createdAt=now();
+      var c=S.clients[q.clientId];
+      if(c) advanceQuoteNumber(c,q.number);
+    }
+    S.quotes[q.id]=q; save();
+    UI.sheet=null;saveUI();closeSheet();renderAll();
+    showViewer(S.quotes[q.id],S.clients[q.clientId]||{name:"client"},[],false)};
+  btns.appendChild(sv);
+  sh.appendChild(btns);
+
+  var btns2=el("div","btns");
+  var tpl=el("button","btn grow","save as template");tpl.type="button";
+  tpl.onclick=function(){
+    var id=uid();
+    S.qtemplates[id]={id:id,name:(q.title||"untitled").trim(),mode:q.mode,
+      title:q.title||"",items:(q.items||[]).map(function(it){return {desc:it.desc,qty:it.qty,unit:it.unit,rate:it.rate}}),
+      scope:(q.scope||[]).map(function(x){return {t:x.t}}),lump:q.lump||"",
+      depType:q.depType,depValue:q.depValue,lead:q.lead||"",
+      exclusions:(q.exclusions||[]).map(function(x){return {t:x.t}}),notes:q.notes||""};
+    save();toast("saved as a template")};
+  btns2.appendChild(tpl);
+  if(!isNew){
+    var del=el("button","btn","delete");del.type="button";
+    del.onclick=function(){
+      if(!del.dataset.armed){del.dataset.armed="1";del.textContent="delete — tap again";return}
+      delete S.quotes[q.id];save();UI.sheet=null;saveUI();closeSheet();renderAll();toast("quote deleted")};
+    btns2.appendChild(del);
+  }
+  sh.appendChild(btns2);
+}
+
+/* ---------- templates ---------- */
+function sheetTemplates(sh,d){
+  head(sh,d.pick?"start from a template":"quote templates");
+  var list=Object.keys(S.qtemplates).map(function(k){return S.qtemplates[k]})
+    .sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""))});
+  if(!list.length){
+    sh.appendChild(el("div","empty","No templates yet."));
+    sh.appendChild(el("div","khint",
+      "Build a quote the way you want it, then use \u201csave as template\u201d at the bottom of the quote sheet. "+
+      "A template keeps the line items, scope, deposit, lead time and exclusions \u2014 not the client, the number or the dates."));
+  }else{
+    var log=el("div","log");
+    list.forEach(function(t){
+      var row=el("div","row"),body=el("div","body"),l1=el("div","l1");
+      l1.appendChild(el("span",null,t.name||"(unnamed)"));
+      l1.appendChild(el("span","hrs",t.mode==="lump"?"lump sum":((t.items||[]).length+" lines")));
+      body.appendChild(l1);
+      var hint=el("div","place",d.pick?"tap to use":"tap twice to delete");
+      body.appendChild(hint);row.appendChild(body);
+      row.onclick=function(){
+        if(d.pick){ UI.sheet=null;saveUI();openSheet({kind:"quote",tpl:t}); return }
+        if(!row.dataset.armed){row.dataset.armed="1";hint.textContent="tap again to delete";return}
+        delete S.qtemplates[t.id];save();paintSheet()};
+      row.tabIndex=0;
+      log.appendChild(row);
+    });
+    sh.appendChild(log);
+  }
+  var btns=el("div","btns");
+  var cl=el("button","btn grow","close");cl.type="button";cl.onclick=closeSheet;
+  btns.appendChild(cl);sh.appendChild(btns);
+}
+
+/* ---------- render: quotes ---------- */
+function renderQuotes(){
+  var host=$("#quoteList");host.innerHTML="";
+  var list=liveQuotes();
+  if(!list.length){
+    host.appendChild(el("div","empty","No quotes yet. Tap + new quote, or start from a template."));
+    return;
+  }
+  var log=el("div","log");
+  list.forEach(function(q){
+    var row=el("div","row"),body=el("div","body"),l1=el("div","l1");
+    l1.appendChild(el("span",null,q.number||"(no number)"));
+    l1.appendChild(el("span","hrs",money(quoteTotal(q))));
+    body.appendChild(l1);
+    body.appendChild(el("div","place",
+      (S.clients[q.clientId]?S.clients[q.clientId].name:"\u2014")+" \u00b7 "+
+      (q.status||"draft")+" \u00b7 "+dateWords(q.issued)));
+    if(q.title) body.appendChild(el("div","note",q.title));
+    row.appendChild(body);
+    row.onclick=function(){ showViewer(q,S.clients[q.clientId]||{name:"client"},[],false) };
+    row.tabIndex=0;
+    row.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();
+      showViewer(q,S.clients[q.clientId]||{name:"client"},[],false)}};
+    log.appendChild(row);
+  });
+  host.appendChild(log);
+}
+
 /* --- paste in a plain-text log, or a JSON backup --- */
 function sheetPaste(sh,d){
   head(sh,"paste data");
@@ -1603,7 +1947,24 @@ function docCss(){return [
 ".invsheet .memo{margin-top:24px;border-top:1px solid #eee;padding-top:12px;font-size:11.5px;",
 "  color:#444;white-space:pre-line}",
 ".invsheet .pv{background:#111;color:#fff;text-align:center;padding:5px;margin:-40px -38px 26px;",
-"  font-size:10.5px;letter-spacing:.22em;text-transform:uppercase}"
+"  font-size:10.5px;letter-spacing:.22em;text-transform:uppercase}",
+".invsheet .qtitle{font-size:14px;font-weight:600;margin:18px 0 0}",
+".invsheet .qtab{width:100%;border-collapse:collapse;margin-top:8px}",
+".invsheet .qtab th{text-align:left;font-size:10px;letter-spacing:.14em;text-transform:uppercase;",
+"  color:#999;font-weight:400;border-bottom:1px solid #ccc;padding:0 0 5px}",
+".invsheet .qtab th.n,.invsheet .qtab td.n{text-align:right;white-space:nowrap;padding-left:16px}",
+".invsheet .qtab td{padding:9px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-size:12.5px}",
+".invsheet .qtab td .u{color:#999;font-size:11px}",
+".invsheet .qscope{margin:8px 0 0;padding:0;list-style:none}",
+".invsheet .qscope li{position:relative;padding:3px 0 3px 1.6ch;font-size:12.5px}",
+".invsheet .qscope li:before{content:'\\00b7';position:absolute;left:0;color:#aaa}",
+".invsheet .qsec{margin-top:22px}",
+".invsheet .qsec h2{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#999;",
+"  margin:0 0 5px;font-weight:400}",
+".invsheet .qsec .bd{font-size:11.5px;color:#444;white-space:pre-line}",
+".invsheet .qsec ul{margin:0;padding:0;list-style:none}",
+".invsheet .qsec li{position:relative;padding:2px 0 2px 1.6ch;font-size:11.5px;color:#444}",
+".invsheet .qsec li:before{content:'\\00b7';position:absolute;left:0;color:#bbb}"
 ].join("\n")}
 
 function rateGroups(list){
@@ -1697,14 +2058,72 @@ function docBody(doc,client,list,preview){
     (doc.memo&&biz.terms&&!rep?"\n\n":"")+esc(rep?"":(biz.terms||""))+'</div>':"");
 }
 
+function quoteBody(doc,client,preview){
+  var cur=S.settings.currency||"$", biz=S.business;
+  function m(n){return cur+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+  var total=quoteTotal(doc), dep=depositAmount(doc);
+  var body="";
+  if(doc.mode==="lump"){
+    var scope=(doc.scope||[]).filter(function(x){return (x.t||"").trim()});
+    body=scope.length
+      ? '<ul class="qscope">'+scope.map(function(x){return "<li>"+esc(x.t)+"</li>"}).join("")+'</ul>'
+      : "";
+  }else{
+    var rows=(doc.items||[]).filter(function(it){return (it.desc||"").trim()||itemAmount(it)})
+      .map(function(it){
+        var q=parseFloat(it.qty);
+        return '<tr><td>'+esc(it.desc||"")+'</td>'+
+          '<td class="n">'+(isFinite(q)?q:"")+(it.unit?' <span class="u">'+esc(it.unit)+'</span>':"")+'</td>'+
+          '<td class="n">'+(parseFloat(it.rate)?m(parseFloat(it.rate)):"")+'</td>'+
+          '<td class="n">'+m(itemAmount(it))+'</td></tr>';
+      }).join("");
+    body=rows?'<table class="qtab"><thead><tr><th>Description</th><th class="n">Qty</th>'+
+      '<th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>'+rows+'</tbody></table>':"";
+  }
+  var totals='<tr class="grand"><td>Total</td><td class="n">'+m(total)+'</td></tr>';
+  if(dep>0){
+    var lbl=doc.depType==="fixed"?"Deposit":("Deposit ("+(parseFloat(doc.depValue)||0)+"%)");
+    totals+='<tr><td>'+esc(lbl)+'</td><td class="n">'+m(dep)+'</td></tr>'+
+      '<tr><td>Balance on completion</td><td class="n">'+m(Math.round((total-dep)*100)/100)+'</td></tr>';
+  }
+  function sec(h,inner){ return inner?'<div class="qsec"><h2>'+esc(h)+'</h2>'+inner+'</div>':"" }
+  function lines(arr){
+    var l=(arr||[]).filter(function(x){return (x.t||"").trim()});
+    return l.length?'<ul>'+l.map(function(x){return "<li>"+esc(x.t)+"</li>"}).join("")+'</ul>':"";
+  }
+  return (preview?'<div class="pv">Preview &mdash; nothing saved</div>':"")+
+  '<header><div><p class="biz">'+esc(biz.name||"")+'</p><div class="small">'+
+  esc(biz.address||"")+(biz.email?"\n"+esc(biz.email):"")+(biz.phone?"\n"+esc(biz.phone):"")+
+  '</div></div><div class="tag"><h1>Quote</h1><div class="no">'+esc(doc.number||"")+'</div>'+
+  '<div class="small">Issued '+esc(dateWords(doc.issued))+
+  (doc.valid?"\nValid until "+esc(dateWords(doc.valid)):"")+'</div></div></header>'+
+  '<div class="parties"><h2>Prepared for</h2><div style="font-size:13px">'+esc(client.name||"")+'</div>'+
+  '<div class="small">'+esc(client.address||"")+(client.email?"\n"+esc(client.email):"")+'</div></div>'+
+  (doc.title?'<p class="qtitle">'+esc(doc.title)+'</p>':"")+
+  body+
+  '<div class="totals"><table>'+totals+'</table></div>'+
+  sec("Lead time",doc.lead?'<div class="bd">'+esc(doc.lead)+'</div>':"")+
+  sec("Not included",lines(doc.exclusions))+
+  sec("Notes",doc.notes?'<div class="bd">'+esc(doc.notes)+'</div>':"")+
+  (biz.terms?'<div class="memo">'+esc(biz.terms)+'</div>':"");
+}
+
+function bodyFor(doc,client,list,preview){
+  return doc.quote?quoteBody(doc,client,preview):docBody(doc,client,list,preview);
+}
+function titleFor(doc,client){
+  if(doc.quote) return "Quote "+(doc.number||"");
+  return doc.report?"Work report":("Invoice "+(doc.number||""));
+}
+
 function docFile(doc,client,list){
   return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'+
   '<meta name="viewport" content="width=device-width,initial-scale=1">\n'+
-  '<title>'+(doc.report?"Work report":"Invoice "+esc(doc.number||""))+' — '+esc(client.name||"")+'</title>\n'+
+  '<title>'+esc(titleFor(doc,client))+' — '+esc(client.name||"")+'</title>\n'+
   '<style>\n@page{margin:16mm 14mm}\nhtml{background:#eeedea}\nbody{margin:0;padding:24px 16px}\n'+
   docCss()+'\n@media print{html,body{background:#fff;padding:0}'+
   '.invsheet{border:0;padding:0;max-width:none;min-height:0;margin:0}}\n</style></head><body>'+
-  '<div class="invsheet">'+docBody(doc,client,list,false)+'</div></body></html>';
+  '<div class="invsheet">'+bodyFor(doc,client,list,false)+'</div></body></html>';
 }
 
 /* ---------- the viewer: a light document inside the dark app ---------- */
@@ -1716,11 +2135,11 @@ function showViewer(doc,client,list,preview){
   var close=el("button","btn","close");close.type="button";
   close.onclick=hideViewer;
   bar.appendChild(close);
-  var spacer=el("div","grow");bar.appendChild(spacer);
   var pr=el("button","btn solid","print / pdf");pr.type="button";
   pr.onclick=function(){ try{window.print()}catch(e){toast("printing isn't available here")} };
   bar.appendChild(pr);
-  if(!preview&&doc.id&&S.invoices[doc.id]){
+  var lastBtn=null;
+  if(!preview&&!doc.quote&&doc.id&&S.invoices[doc.id]){
     var vd=el("button","btn","void");vd.type="button";
     vd.onclick=function(){
       if(!vd.dataset.armed){vd.dataset.armed="1";vd.textContent="void — tap again";return}
@@ -1734,17 +2153,35 @@ function showViewer(doc,client,list,preview){
       toast("voided — those blocks are un-invoiced again")};
     bar.appendChild(vd);
   }
+  if(!preview&&doc.quote&&doc.id&&S.quotes[doc.id]){
+    var ed=el("button","btn","edit");ed.type="button";
+    ed.onclick=function(){hideViewer();openSheet({kind:"quote",id:doc.id})};
+    bar.appendChild(ed);
+    var stb=el("button","btn",doc.status||"draft");stb.type="button";
+    stb.onclick=function(){
+      var i=QSTATUS.indexOf(doc.status||"draft");
+      doc.status=QSTATUS[(i+1)%QSTATUS.length];
+      doc.updatedAt=now(); S.quotes[doc.id]=doc; save();
+      stb.textContent=doc.status; renderQuotes()};
+    bar.appendChild(stb);
+    lastBtn=el("button","btn","delete");lastBtn.type="button";
+    lastBtn.onclick=function(){
+      if(!lastBtn.dataset.armed){lastBtn.dataset.armed="1";lastBtn.textContent="delete — tap again";return}
+      delete S.quotes[doc.id]; save(); hideViewer(); renderAll(); toast("quote deleted")};
+  }
   if(!preview){
     var sv=el("button","btn","save file");sv.type="button";
     sv.onclick=function(){
-      var name=safeName((doc.number||"invoice")+" "+client.name);
-      deliver([safeName(S.settings.invoiceDir||"Daybook Invoices"),safeName(client.name),name+".html"],
+      var dir=doc.quote?(S.settings.quoteDir||"Daybook Quotes"):(S.settings.invoiceDir||"Daybook Invoices");
+      var name=safeName((doc.number||(doc.quote?"quote":"invoice"))+" "+client.name);
+      deliver([safeName(dir),safeName(client.name),name+".html"],
         docFile(doc,client,list),"text/html;charset=utf-8")};
     bar.appendChild(sv);
   }
+  if(lastBtn) bar.appendChild(lastBtn);
   v.appendChild(bar);
   var sheet=el("div","invsheet");
-  sheet.innerHTML=docBody(doc,client,list,preview);
+  sheet.innerHTML=bodyFor(doc,client,list,preview);
   v.appendChild(sheet);
   v.classList.add("on");
   document.body.style.overflow="hidden";
@@ -1784,6 +2221,9 @@ $("#addManual").addEventListener("click",function(){
   if(!liveClients().length){toast("add a client in setup first");return}
   openSheet({kind:"entry"})});
 $("#addClient").addEventListener("click",function(){openSheet({kind:"client"})});
+$("#addQuote").addEventListener("click",function(){openSheet({kind:"quote"})});
+$("#qFromTpl").addEventListener("click",function(){openSheet({kind:"templates",pick:true})});
+$("#manageTpl").addEventListener("click",function(){openSheet({kind:"templates"})});
 $("#filtClient").addEventListener("change",function(){filtClient=this.value;renderBlocks()});
 $("#dFrom").addEventListener("click",function(){openSheet({kind:"range",which:"from"})});
 $("#dTo").addEventListener("click",function(){openSheet({kind:"range",which:"to"})});
@@ -1837,7 +2277,8 @@ $("#pasteData").addEventListener("click",function(){openSheet({kind:"paste"})});
 .forEach(function(p){$(p[0]).addEventListener("change",function(){S.business[p[1]]=this.value;save()})});
 [["#setRound","round",1],["#setRoundMode","roundMode",0],
  ["#setNet","net",1],["#setCur","currency",0],["#setPlace","place",0],
- ["#setInvDir","invoiceDir",0],["#setDataDir","dataDir",0]]
+ ["#setInvDir","invoiceDir",0],["#setDataDir","dataDir",0],
+ ["#setQuoteDir","quoteDir",0],["#setQuoteValid","quoteValid",1]]
 .forEach(function(p){$(p[0]).addEventListener("change",function(){
   S.settings[p[1]]=p[2]?(+this.value||0):this.value;save();renderAll()})});
 
