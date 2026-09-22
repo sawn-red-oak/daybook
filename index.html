@@ -366,7 +366,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.10.0";
+var VERSION="1.11.1";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -439,8 +439,9 @@ function defaults(){return{
   clients:{},
   business:{name:"",email:"",phone:"",address:"",terms:""},
   settings:{round:6,roundMode:"nearest",prefix:"",next:1,net:14,currency:"$",place:"onsite",
-    invoiceDir:"Daybook Invoices",dataDir:"Daybook Data"},
-  active:null, months:{}, invoices:{}
+    invoiceDir:"Daybook Invoices",dataDir:"Daybook Data",quoteDir:"Daybook Quotes",
+    quoteValid:30},
+  active:null, months:{}, invoices:{}, quotes:{}, qtemplates:{}
 }}
 var S=defaults();
 var UI={tab:"track",sheet:null};
@@ -457,6 +458,12 @@ function load(){
       S.quotes=p.quotes||{}; S.qtemplates=p.qtemplates||{};
     }}}catch(e){}
   try{var u=localStorage.getItem(LSUI); if(u){var q=JSON.parse(u); if(q&&typeof q==="object") UI=Object.assign(UI,q)}}catch(e){}
+  /* Any store key the running build expects must exist before the first
+     render. A build that adds a key and forgets its default crashes on
+     boot for anyone with no saved data — which is exactly what a cleared
+     browser looks like. */
+  var base=defaults();
+  for(var k in base) if(S[k]===undefined||S[k]===null&&base[k]!==null) S[k]=base[k];
   migrate();
 }
 /* old shape: a single `note` string per entry, no place, no tasks */
@@ -725,6 +732,7 @@ function depositAmount(qd){
   return Math.round((qd.depType==="fixed"?v:t*v/100)*100)/100;
 }
 function liveQuotes(){
+  if(!S.quotes) S.quotes={};
   return Object.keys(S.quotes).map(function(k){return S.quotes[k]})
     .sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0)});
 }
@@ -1566,6 +1574,7 @@ function sheetQuote(sh,d){
 /* ---------- templates ---------- */
 function sheetTemplates(sh,d){
   head(sh,d.pick?"start from a template":"quote templates");
+  if(!S.qtemplates) S.qtemplates={};
   var list=Object.keys(S.qtemplates).map(function(k){return S.qtemplates[k]})
     .sort(function(a,b){return String(a.name||"").localeCompare(String(b.name||""))});
   if(!list.length){
@@ -2260,6 +2269,8 @@ function mergeBackup(p){
   if(p.settings)S.settings=Object.assign(S.settings,p.settings);
   for(var k in (p.months||{})) S.months[k]=Object.assign(S.months[k]||{},p.months[k]);
   S.invoices=Object.assign(S.invoices,p.invoices||{});
+  S.quotes=Object.assign(S.quotes||{},p.quotes||{});
+  S.qtemplates=Object.assign(S.qtemplates||{},p.qtemplates||{});
   migrate();save();
 }
 $("#importFile").addEventListener("change",function(){
