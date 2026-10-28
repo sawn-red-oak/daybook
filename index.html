@@ -348,7 +348,7 @@ select{appearance:none;padding-right:20px;
         <button class="btn" id="writeMasters">write master sheets</button>
         <button class="btn" id="importBackup">import json</button>
       </div>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" hidden>
     </div>
 
     <div class="help">
@@ -366,7 +366,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.12.0";
+var VERSION="1.12.1";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -628,14 +628,26 @@ function deliver(parts,text,mime){
   share();
   function share(){
     var blob=new Blob([text],{type:mime||"text/plain;charset=utf-8"});
-    try{
-      var f=new File([blob],filename,{type:blob.type});
-      if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){
-        navigator.share({files:[f],title:filename}).then(function(){toast("sent")})
-        .catch(function(err){if(!err||err.name!=="AbortError")anchor(blob,filename)});
-        return;
-      }
-    }catch(e){}
+    /* Android's share sheet takes files by type, and .json is not on the
+       list it accepts. The bytes are plain text either way, so offer the
+       same content as .txt rather than dropping to a download that lands in
+       a folder nobody opens. Import reads either extension. */
+    var tries=[[filename,blob.type]];
+    if(/\.json$/i.test(filename))
+      tries.push([filename.replace(/\.json$/i,".txt"),"text/plain;charset=utf-8"]);
+    for(var i=0;i<tries.length;i++){
+      try{
+        var b=i?new Blob([text],{type:tries[i][1]}):blob;
+        var f=new File([b],tries[i][0],{type:tries[i][1]});
+        if(navigator.canShare&&navigator.canShare({files:[f]})&&navigator.share){
+          (function(nm,bl){
+            navigator.share({files:[f],title:nm}).then(function(){toast("sent")})
+            .catch(function(err){if(!err||err.name!=="AbortError")anchor(bl,nm)});
+          })(tries[i][0],b);
+          return;
+        }
+      }catch(e){}
+    }
     anchor(blob,filename);
   }
   function anchor(blob,fn){
@@ -2290,7 +2302,7 @@ function blockSigs(){
 /* Work out what a merge would do before anything is touched, so the sheet can
    say it plainly and so the two code paths can never drift apart. */
 function planMerge(p){
-  var byName=clientsByName(), remap={}, add=[], dupes=0, upd=0, needed={};
+  var byName=clientsByName(), remap={}, add=[], dupes=0, upd=0, stale=0, needed={};
   for(var k in (p.clients||{})){
     var nm=((p.clients[k]||{}).name||"").trim().toLowerCase(), hit=byName[nm];
     if(hit&&hit!==k) remap[k]=hit;
@@ -2299,7 +2311,18 @@ function planMerge(p){
   for(var mk in (p.months||{})) for(var bid in p.months[mk]){
     var nb=p.months[mk][bid], key=nb.start+"|"+nb.end;
     if(sig[key]&&sig[key]!==bid){ dupes++; continue }   /* same hours, other id */
-    if(sig[key]===bid) upd++;                           /* same record, refreshed */
+    var have=(S.months[mk]||{})[bid];
+    if(have){
+      /* The same block, from an older copy of the store. A backup taken
+         before an invoice was raised still has invoiceId empty on work that
+         has since been billed, and a blind overwrite hands it back to you as
+         billable. Only a strictly newer record may land. */
+      if((nb.updatedAt||0)<=(have.updatedAt||0)){ stale++; continue }
+      /* Belt and braces for a file with no usable updatedAt: an import may
+         add an invoice link, never remove one. */
+      if(have.invoiceId&&!nb.invoiceId) nb=Object.assign({},nb,{invoiceId:have.invoiceId});
+      upd++;
+    }
     sig[key]=bid;
     var cid=remap[nb.clientId]||nb.clientId;
     needed[cid]=1;
@@ -2311,13 +2334,13 @@ function planMerge(p){
   for(var qk in (p.quotes||{}))   needed[remap[p.quotes[qk].clientId]||p.quotes[qk].clientId]=1;
   var clients=[];
   for(var k2 in (p.clients||{})) if(!remap[k2]&&needed[k2]&&!S.clients[k2]) clients.push(k2);
-  return {add:add,dupes:dupes,upd:upd,clients:clients,remap:remap,
+  return {add:add,dupes:dupes,upd:upd,stale:stale,clients:clients,remap:remap,
           names:clients.map(function(c){return (p.clients[c]||{}).name||"(unnamed)"})};
 }
 function importSummary(p){
   var pl=planMerge(p);
   return {clients:pl.clients.length,blocks:pl.add.length-pl.upd,
-          updates:pl.upd,dupes:pl.dupes,names:pl.names};
+          updates:pl.upd,dupes:pl.dupes,stale:pl.stale,names:pl.names};
 }
 function applyBackup(p,mode){
   if(!p||typeof p!=="object")throw new Error("not a backup");
@@ -2364,6 +2387,8 @@ function sheetImport(sh,d){
   bits.push("adds "+s.blocks+" new "+(s.blocks===1?"block":"blocks"));
   if(s.updates) bits.push("refreshes "+s.updates+" already here");
   if(s.dupes)   bits.push("skips "+s.dupes+" that duplicate work you already have");
+  if(s.stale)   bits.push("ignores "+s.stale+" older "+(s.stale===1?"copy":"copies")+
+                          " of blocks already here");
   if(s.clients) bits.push("adds "+(s.clients===1?"the client ":"clients ")+s.names.join(", "));
   sh.appendChild(el("div","note","MERGE "+bits.join(", ")+
     ". Nothing on this device is removed."));
@@ -2373,7 +2398,7 @@ function sheetImport(sh,d){
   var m=el("button","btn solid grow","merge");
   m.onclick=function(){
     try{ applyBackup(p,"merge"); pendingImport=null; closeSheet(); renderAll();
-      toast(s.blocks+" added, "+(s.updates+s.dupes)+" skipped");
+      toast(s.blocks+" added, "+(s.updates+s.dupes+s.stale)+" skipped");
     }catch(e){ toast("couldn't import that file") }};
   var r=el("button","btn grow","replace everything");
   r.onclick=function(){
