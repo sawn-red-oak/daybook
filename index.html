@@ -366,7 +366,7 @@ select{appearance:none;padding-right:20px;
 <script>
 (function(){
 "use strict";
-var VERSION="1.12.1";
+var VERSION="1.13.0";
 var LS="daybook.v1", LSUI="daybook.ui";
 
 /* ---------- small helpers ---------- */
@@ -599,14 +599,24 @@ var autoSaveT=null;
 function folderAutoSave(){
   if(!folderHandle) return;
   clearTimeout(autoSaveT);
-  autoSaveT=setTimeout(writeAllDerived,1500);
+  autoSaveT=setTimeout(writeStore,1500);
+}
+/* The JSON store is the only thing worth writing on every change: it is the
+   record, and everything else in the folder is derived from it. The per-client
+   sheets are an export for reading in a spreadsheet, nobody reads them back,
+   and writing them on every clock-out just churned the folder. They are on the
+   "write master sheets" button now. */
+function writeStore(){
+  if(!folderHandle) return Promise.resolve();
+  var dd=safeName(S.settings.dataDir||"Daybook Data");
+  return writeIntoFolder([dd,"daybook-data.json"],JSON.stringify(S,null,1));
 }
 /* The master sheets are derived, not accumulated: each is regenerated in full
    from the JSON every time, so they can never double up or fall behind. */
 function writeAllDerived(){
   if(!folderHandle) return Promise.resolve();
   var dd=safeName(S.settings.dataDir||"Daybook Data");
-  var jobs=[writeIntoFolder([dd,"daybook-data.json"],JSON.stringify(S,null,1))];
+  var jobs=[writeStore()];
   var byClient={};
   allEntries().forEach(function(b){(byClient[b.clientId]=byClient[b.clientId]||[]).push(b)});
   Object.keys(byClient).forEach(function(cid){
