@@ -2282,7 +2282,8 @@ $("#exportBackup").addEventListener("click",function(){
   deliver(["daybook_backup_"+stamp()+".json"],JSON.stringify(S,null,1),"application/json")});
 $("#writeMasters").addEventListener("click",function(){
   if(!folderHandle){toast("connect a folder first — on a phone use export all blocks");return}
-  writeAllDerived().then(function(){toast("master sheets written to Hours/")})
+  writeAllDerived().then(function(){
+      toast("master sheets written to "+(S.settings.dataDir||"Daybook Data")+"/")})
     .catch(function(){toast("couldn't write to that folder")})});
 $("#importBackup").addEventListener("click",function(){$("#importFile").click()});
 /* A block's id is random and assigned when the block is created, so the same
