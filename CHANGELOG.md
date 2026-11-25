@@ -6,6 +6,16 @@ A fork catches up by running **Sync fork** (or `gh repo sync <username>/<repo-na
 
 ---
 
+## 1.20.0: stay signed in to Google (Cloudflare only)
+
+- On Cloudflare Pages, a small server function (`functions/api/google/[action].js`) keeps a device signed in to Google Drive. There's no more hourly "tap to sync".
+  - It stores Google's long-lived sign-in in an encrypted, HttpOnly cookie.
+  - It needs the Cloudflare secret `GOOGLE_CLIENT_SECRET`.
+- The app checks `./api/google/ping`. Where the function isn't running (e.g. GitHub Pages) or isn't configured, sign-in works exactly as before: an hourly token, renewed with a tap.
+- The offline cache never stores `/api/` responses.
+
+**Forks:** nothing to do. On GitHub Pages the new file is simply unused. To get the same on your own Cloudflare Pages project, add a `GOOGLE_CLIENT_SECRET` secret for the Google client in your `config.js`.
+
 ## 2026-11-25: receipt scanning dropped from the plan
 
 - Receipt and PDF scanning won't be built. Expenses go on invoices as line items, typed in **+ new invoice**, or offered by a module through the `billables` hook (see 1.19.0).
