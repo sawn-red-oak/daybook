@@ -45,19 +45,72 @@ function gisLoad(){
   });
   return DRV.gis;
 }
+/* Staying signed in. Where the app is hosted with its sign-in server
+   (functions/api/google on Cloudflare Pages), connecting uses Google's code
+   flow: the server keeps a refresh token in an HttpOnly cookie and hands out
+   fresh hourly tokens with no tap. Elsewhere (e.g. GitHub Pages) the browser
+   gets hourly tokens itself, and the header asks for a tap when one runs out. */
+var GSERVER="./api/google/";
+function serverReady(){
+  if(DRV.server!=null) return Promise.resolve(DRV.server);
+  return fetch(GSERVER+"ping",{cache:"no-store"}).then(function(r){return r.ok?r.json():null})
+    .then(function(j){ DRV.server=!!(j&&j.ok); return DRV.server })
+    .catch(function(){ DRV.server=false; return false });
+}
+function gpost(path,body){
+  return fetch(GSERVER+path,{method:"POST",credentials:"same-origin",
+    headers:{"Content-Type":"application/json","X-Radicchio":"1"},body:JSON.stringify(body||{})})
+    .then(function(r){ return r.json().catch(function(){return {}}).then(function(j){ j._status=r.status; return j }) });
+}
+function keepToken(t,expiresIn){
+  DRV.token=t; DRV.exp=Date.now()+(+expiresIn||3600)*1000;
+  try{ localStorage.setItem(LSTOKEN,JSON.stringify({token:DRV.token,exp:DRV.exp})) }catch(e){}
+  return t;
+}
 /* A token now, or a rejection with .tap when getting one needs the person to tap. */
 function driveToken(interactive,consent){
   if(DRV.token&&DRV.exp-60000>Date.now()) return Promise.resolve(DRV.token);
-  if(!interactive){ var e=new Error("needs a tap"); e.tap=true; return Promise.reject(e) }
+  var tap=function(){ var e=new Error("needs a tap"); e.tap=true; return e };
+  /* a remembered sign-in on the server: renew silently */
+  var viaServer = DRV.state.remembered
+    ? gpost("refresh").then(function(j){
+        if(j.access_token) return keepToken(j.access_token,j.expires_in);
+        DRV.state.remembered=false; driveSaveState(); throw tap();
+      })
+    : Promise.reject(tap());
+  return viaServer.catch(function(e){
+    if(!interactive) throw tap();
+    return serverReady().then(function(srv){ return srv ? codeSignIn() : tokenSignIn(consent) });
+  });
+}
+/* Code flow through the server: the refresh token stays server-side. */
+function codeSignIn(){
+  return gisLoad().then(function(){
+    return new Promise(function(res,rej){
+      var cfg={client_id:CONFIG.googleClientId, scope:DRIVE_SCOPE, ux_mode:"popup",
+        callback:function(r){
+          if(!r||r.error||!r.code){ rej(new Error((r&&r.error)||"sign-in failed")); return }
+          gpost("token",{code:r.code,client_id:CONFIG.googleClientId}).then(function(j){
+            if(!j.access_token){ rej(new Error(j.error||"sign-in failed")); return }
+            DRV.state.remembered=!!j.remembered; driveSaveState();
+            res(keepToken(j.access_token,j.expires_in));
+          },rej);
+        },
+        error_callback:function(err){ rej(new Error((err&&err.type)||"sign-in closed")) }};
+      if(DRV.state.email) cfg.login_hint=DRV.state.email;
+      google.accounts.oauth2.initCodeClient(cfg).requestCode();
+    });
+  });
+}
+/* Plain browser sign-in: an hourly token, renewed with a tap. */
+function tokenSignIn(consent){
   return gisLoad().then(function(){
     return new Promise(function(res,rej){
       var tc=google.accounts.oauth2.initTokenClient({
         client_id:CONFIG.googleClientId, scope:DRIVE_SCOPE,
         callback:function(r){
           if(!r||r.error||!r.access_token){ rej(new Error((r&&r.error)||"sign-in failed")); return }
-          DRV.token=r.access_token; DRV.exp=Date.now()+(+r.expires_in||3600)*1000;
-          try{ localStorage.setItem(LSTOKEN,JSON.stringify({token:DRV.token,exp:DRV.exp})) }catch(e){}
-          res(DRV.token);
+          res(keepToken(r.access_token,r.expires_in));
         },
         error_callback:function(err){ rej(new Error((err&&err.type)||"sign-in closed")) }
       });
@@ -71,7 +124,7 @@ function gfetch(url,opts){
   opts=opts||{}; opts.headers=Object.assign({},opts.headers||{},{Authorization:"Bearer "+DRV.token});
   return fetch(url,opts).then(function(r){
     if(r.status===401){ DRV.token=null; DRV.exp=0; try{localStorage.removeItem(LSTOKEN)}catch(e){}
-      var e=new Error("signed out"); e.tap=true; throw e }
+      var e=new Error("signed out"); e.tap=!DRV.state.remembered; e.retry=!!DRV.state.remembered; throw e }
     if(!r.ok){ var e2=new Error("Drive said "+r.status); e2.status=r.status; throw e2 }
     return r;
   });
@@ -125,12 +178,13 @@ function driveConnect(){
     return gfetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)")
       .then(function(r){return r.json()});
   }).then(function(j){
-    DRV.state={email:(j.user&&j.user.emailAddress)||"your Google account"}; driveSaveState();
+    DRV.state={email:(j.user&&j.user.emailAddress)||"your Google account",remembered:!!DRV.state.remembered}; driveSaveState();
     try{ localStorage.removeItem(LSBASE) }catch(e){}   /* first sync on this device combines */
     renderSetup(); return driveSync(true);
   }).catch(function(e){ toast("couldn't connect Google Drive — "+e.message) });
 }
 function driveDisconnect(){
+  if(DRV.state.remembered) gpost("signout").catch(function(){});
   try{ if(DRV.token&&window.google&&google.accounts) google.accounts.oauth2.revoke(DRV.token,function(){}) }catch(e){}
   DRV.state={}; DRV.token=null; DRV.exp=0;
   ["radicchio.drive","radicchio.token","radicchio.base"].forEach(function(k){ try{localStorage.removeItem(k)}catch(e){} });
@@ -214,10 +268,12 @@ function driveSync(interactive){
       if(changed||DRV.again) adopt(merged);
       writeBase(merged);
     }
-    DRV.state.lastSync=Date.now(); driveSaveState();
+    DRV.state.lastSync=Date.now(); driveSaveState(); DRV.retried=false;
     driveSetStatus("synced");
     if(changed){ renderAll(); if(UI.sheet) paintSheet() }
   }).catch(function(e){
+    /* a remembered device whose hourly token was rejected: renew and go again */
+    if(e.retry&&!DRV.retried){ DRV.retried=true; DRV.again=true; return }
     driveSetStatus(e.tap?"tap":"error");
     if(interactive&&!e.tap) toast("sync failed — "+e.message);
   }).then(function(){
@@ -253,7 +309,8 @@ function renderDrive(){
   var sn=el("button","btn bare","sync now"); sn.onclick=function(){ driveSync(true) }; d.appendChild(sn);
   row.appendChild(d);
   var when=DRV.state.lastSync?("Last synced "+t12(DRV.state.lastSync)+(ymd(DRV.state.lastSync)!==ymd(now())?" on "+dlong(DRV.state.lastSync):"")+"."):"Not synced yet.";
-  row.appendChild(el("div","note",when+" Data and documents go to "+DRIVE_ROOT+"/ in this account's Drive."));
+  row.appendChild(el("div","note",when+" Data and documents go to "+DRIVE_ROOT+"/ in this account's Drive."+
+    (DRV.state.remembered?" This device stays signed in.":" Sign-in lasts an hour; after that, tap the header to sync.")));
   var off=el("button","btn bare","disconnect");
   off.onclick=function(){ if(!off.dataset.armed){off.dataset.armed="1";off.textContent="disconnect — tap again";return} driveDisconnect() };
   row.appendChild(off);

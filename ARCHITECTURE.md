@@ -153,7 +153,17 @@ S = {
 - when the app goes to the background with a change pending;
 - on "sync now" and on a tap on the header status.
 
-**Sign-in.** Google Identity Services' token client uses the `drive.file` scope only, so the app sees just the files it created. Tokens last about an hour and can only be renewed from a user gesture, because Google uses a popup. So background syncs stop at status `tap`, and the header shows "tap to sync". Removing that limit needs a refresh token, which needs a server (planned with Cloudflare at step 7).
+**Sign-in.** Only the `drive.file` scope is requested, so the app sees just the files it created. There are two modes:
+
+- **With the server** (Cloudflare Pages, where `./api/google/ping` returns `{ok:true}`): Google's *code* flow. `functions/api/google/[action].js`:
+  - exchanges the code using `GOOGLE_CLIENT_SECRET` (a Cloudflare secret, set for Production and Preview);
+  - keeps the refresh token in an AES-GCM-encrypted, HttpOnly, SameSite=Strict cookie on `/api/google`;
+  - answers `POST /api/google/refresh` with fresh hourly tokens, so background syncs never need a tap.
+
+  `DRV.state.remembered` marks a device signed in this way. Requests must carry `X-Radicchio: 1`. Disconnecting calls `/api/google/signout`, which revokes the token.
+- **Without it** (GitHub Pages, localhost): the browser's token flow. Tokens last an hour and can only be renewed from a tap, so the header shows "tap to sync".
+
+The Google app must be **In production**: in Testing, refresh tokens expire after 7 days.
 
 **Documents.** `deliver(parts, text, mime, driveParts)` saves to `<driveFolder>/<driveParts…>` when Drive is connected, replacing a file of the same name. Otherwise it uses the connected folder (desktop) or the share sheet (phone). With Drive connected, the connected folder steps aside entirely, so Drive is the one copy every device mirrors.
 

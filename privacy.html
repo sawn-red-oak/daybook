@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radicchio: privacy</title>
+<style>
+  body{margin:0;background:#000;color:#E9E9E6;font:15px/1.65 ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Consolas,monospace}
+  main{max-width:640px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-size:18px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin:0 0 4px}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7E7E78;font-weight:500;margin:28px 0 6px}
+  p,li{color:#d6d6d2} a{color:#E9E9E6} .dim{color:#7E7E78;font-size:13px}
+  ul{padding-left:1.2em}
+</style>
+</head>
+<body><main>
+<h1>Radicchio: privacy</h1>
+<p class="dim">Last updated November 25, 2026</p>
+
+<p>Radicchio is a small time-tracking and invoicing app made by Eamon LLC. It's built to keep your information with you.</p>
+
+<h2>What it stores, and where</h2>
+<ul>
+  <li><b>On your device:</b> everything you enter (clients, hours, invoices, quotes, print jobs, settings) is kept in your browser's storage on that device.</li>
+  <li><b>In your own Google Drive, if you connect it:</b> a copy of that data, plus any invoices and quotes you save, goes into a folder named "Radicchio" in <i>your</i> Drive, so your devices can stay in sync. Nobody else gets a copy, Eamon LLC included.</li>
+</ul>
+
+<h2>What Google access it asks for</h2>
+<p>Only Google's <code>drive.file</code> permission: Radicchio can see and change <b>only the files it creates</b>. It can't see anything else in your Drive. It also reads your Google account's email address, to show which account is connected.</p>
+
+<h2>Staying signed in</h2>
+<p>To keep you signed in without asking every hour, the app's server (hosted on Cloudflare) stores Google's sign-in token in an encrypted cookie in your browser. That cookie can only be read by the app's own server, and the server keeps no other copy and no record of your data. Disconnecting Google Drive in the app deletes the cookie and revokes the token. You can also remove access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+
+<h2>What it doesn't do</h2>
+<ul>
+  <li>No ads, no tracking, no analytics.</li>
+  <li>Your data is never sold or shared.</li>
+  <li>Google user data is used only to provide sync and file saving, as described here, and in line with the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</li>
+</ul>
+
+<h2>Contact</h2>
+<p>Questions: <a href="mailto:hello@eamon.llc">hello@eamon.llc</a></p>
+<p class="dim"><a href="./">Back to Radicchio</a> · <a href="https://github.com/sawn-red-oak/radicchio">Source code</a></p>
+</main></body>
+</html>

@@ -37,6 +37,7 @@ self.addEventListener("fetch", function (e) {
   if (req.method !== "GET") return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.indexOf("/api/") !== -1) return;   // the sign-in server: never cached
 
   e.respondWith(
     new Promise(function (resolve) {

@@ -2,7 +2,7 @@
 /* The data: one object S, kept in localStorage. Clients, time blocks by month,
    invoices, quotes. Also invoice numbering and hour rounding. */
 
-var VERSION="1.19.0";
+var VERSION="1.20.0";
 var LS="radicchio.v1", LSUI="radicchio.ui";
 /* Until v1.16 the app was called Daybook and kept its data under these keys.
    They are copied across once and then left alone, as a safety net. */
