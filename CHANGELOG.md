@@ -14,7 +14,9 @@ A fork catches up by running **Sync fork** (or `gh repo sync <username>/<repo-na
 - The app checks `./api/google/ping`. Where the function isn't running (e.g. GitHub Pages) or isn't configured, sign-in works exactly as before: an hourly token, renewed with a tap.
 - The offline cache never stores `/api/` responses.
 
-**Forks:** nothing to do. On GitHub Pages the new file is simply unused. To get the same on your own Cloudflare Pages project, add a `GOOGLE_CLIENT_SECRET` secret for the Google client in your `config.js`.
+The Google app is now **published (In production)**, so remembered sign-ins don't expire after 7 days, and nobody needs to be added as a tester.
+
+**Forks:** nothing to do. On GitHub Pages the new file is simply unused. A fork sharing Eamon's Google client just needs its address allowed; send him your GitHub username. To get the same on your own Cloudflare Pages project, add a `GOOGLE_CLIENT_SECRET` secret for the Google client in your `config.js`.
 
 ## 2026-11-25: receipt scanning dropped from the plan
 
