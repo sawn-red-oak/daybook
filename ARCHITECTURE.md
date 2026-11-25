@@ -213,10 +213,15 @@ On a synced device, a replace propagates like any other edit, so deletions inclu
 
 **Google Cloud** (`radicchio-515819`, Google Auth Platform):
 
-- Testing mode, audience External, `drive.file` scope only.
-- Test users: hello@eamon.llc, plus anyone sharing the client.
-- Allowed origins: `https://radicchio-time.pages.dev`, `https://sawn-red-oak.github.io` (the old address), `http://localhost:8765`.
-- A fork that shares the client needs its own GitHub Pages origin added, and its owner added as a test user.
+- **In production** (published 2026-11-25), audience External, `drive.file` scope only. There's no logo, so Google's review isn't needed, and anyone with a Google account can connect; no tester list is needed.
+- Branding: homepage https://radicchio-time.pages.dev, privacy policy https://radicchio-time.pages.dev/privacy.
+- Allowed JavaScript origins:
+  - `https://radicchio-time.pages.dev`
+  - `https://radicchio-sign-in.radicchio-time.pages.dev` (the preview used to test sign-in)
+  - `https://sawn-red-oak.github.io` (the old address, and forks sharing the client)
+  - `http://localhost:8765`
+- A fork that shares the client needs its own origin added, e.g. `https://<username>.github.io`.
+- **Client secrets:** the newer one is in Cloudflare as `GOOGLE_CLIENT_SECRET` (Production and Preview). The original, ending `CMEY`, isn't used anywhere and can be disabled.
 
 ## Testing (how it has been done)
 
