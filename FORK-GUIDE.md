@@ -55,7 +55,7 @@ A personal version is a **fork**: your own copy of the project on GitHub. You ch
 
 | Ready now | Coming later |
 |---|---|
-| Time tracking, invoices, work reports, quotes | Receipt and PDF scanning |
+| Time tracking, invoices, work reports, quotes | Staying signed in to Google (no hourly "tap to sync") |
 | Line items on invoices: flat fees and expenses, with or without hours | |
 | 3D print pricing and billing (the `prints` module) | |
 | Google Drive sync between devices; invoices and quotes saved to Drive | |

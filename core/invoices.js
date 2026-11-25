@@ -40,7 +40,7 @@ function openInvoice(iv){
 
 /* ---------- invoice records ----------
    An invoice is time blocks (blockIds) and/or line items (items), each item
-   {desc, qty, unit, rate, source:"manual"|"print"|"receipt", date?, category?,
+   {desc, qty, unit, rate, source:"manual"|"print"|<a module's id>, date?, category?,
    file?}. The client's rate, name and address are frozen on the invoice when
    it's recorded (snap), so a later change to the client doesn't rewrite
    invoices already sent. */

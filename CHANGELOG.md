@@ -6,6 +6,13 @@ A fork catches up by running **Sync fork** (or `gh repo sync <username>/<repo-na
 
 ---
 
+## 2026-11-25: receipt scanning dropped from the plan
+
+- Receipt and PDF scanning won't be built. Expenses go on invoices as line items, typed in **+ new invoice**, or offered by a module through the `billables` hook (see 1.19.0).
+- The `source` on an invoice line is `"manual"`, `"print"`, or any module's own id (e.g. `"budget"`).
+
+**Forks:** nothing to do. A budget or expenses module records its own purchases with `modData`, and can offer them for billing with `billables` / `onVoid`.
+
 ## 2026-11-25: moved to Cloudflare, repo renamed `radicchio`
 
 - The main app now lives at **https://radicchio-time.pages.dev** (Cloudflare Pages). It deploys from `main` automatically.
@@ -17,7 +24,7 @@ A fork catches up by running **Sync fork** (or `gh repo sync <username>/<repo-na
 ## 1.19.0: 3D print pricing (`prints` module)
 
 - New module **`prints`**: price 3D print jobs as (grams × material $/g + print hours × machine $/h) × (1 + markup %). It has default rates, a materials list, and per-client overrides. Jobs wait per client and get ticked onto invoices.
-- New **core billing hook**: a module can provide `billables(clientId)` and `onVoid(invoice)`. Both invoice sheets list what's waiting for the client with tick boxes; ticked entries become line items, and voiding releases them. `modules/prints.js` is the example. A budget or receipts module can use the same hook.
+- New **core billing hook**: a module can provide `billables(clientId)` and `onVoid(invoice)`. Both invoice sheets list what's waiting for the client with tick boxes; ticked entries become line items, and voiding releases them. `modules/prints.js` is the example. A budget or expenses module can use the same hook.
 
 **Forks:**
 - `config.js` upstream now has `"prints"` on its `modules` line. If your fork edited that line, Sync fork reports a conflict. **Keep your own `modules` line.** Leave `"prints"` out unless you want it.
@@ -26,7 +33,7 @@ A fork catches up by running **Sync fork** (or `gh repo sync <username>/<repo-na
 ## 1.18.0: line items on invoices
 
 - Invoices can be **hours, line items, or both**. **+ new invoice** on the invoices tab creates an items-only invoice (flat fees, expenses), and **generate invoice** on the blocks tab gains **extra items**.
-- Items are `{desc, qty, unit, rate, source:"manual"|"print"|"receipt", date?, category?, file?}`.
+- Items are `{desc, qty, unit, rate, source, date?, category?, file?}`, where `source` is `"manual"`, `"print"` or a module's id.
 - Recording an invoice **freezes** the client's rate, name, address and email on it (`snap`). Existing invoices were backfilled on first load.
 - New setting: **file name prefix** (setup → invoicing). Saved files are named like "EM Invoice SK007".
 - `safeName` drops trailing dots and spaces, as Windows does.
