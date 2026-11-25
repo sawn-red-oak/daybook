@@ -74,7 +74,7 @@ S = {
   months:     { "YYYY-MM": { <blockId>: {id, clientId, start, end (ms), place, tasks:[{t, at}],
                                          updatedAt, invoiceId?, invoiced?} } },
   invoices:   { <id>: {id, number, clientId, issued, due ("YYYY-MM-DD"), memo, mode:"block"|"day"|"total",
-                       desc, blockIds:[…], items:[{desc, qty, unit, rate, source:"manual"|"print"|"receipt",
+                       desc, blockIds:[…], items:[{desc, qty, unit, rate, source:"manual"|"print"|<a module's id>,
                        date?, category?, file?}], total (hours + items), hours,
                        snap:{rate, name, address, email}, createdAt, updatedAt} },
   quotes:     { <id>: {id, quote:true, clientId, number, title, mode:"items"|"lump", items:[{desc, qty, unit, rate}],
