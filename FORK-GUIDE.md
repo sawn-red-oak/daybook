@@ -55,7 +55,8 @@ A personal version is a **fork**: your own copy of the project on GitHub. You ch
 
 | Ready now | Coming later |
 |---|---|
-| Time tracking, invoices, work reports, quotes | Staying signed in to Google (no hourly "tap to sync") |
+| Time tracking, invoices, work reports, quotes | |
+| Staying signed in to Google, when hosted on Cloudflare Pages (no hourly "tap to sync") | |
 | Line items on invoices: flat fees and expenses, with or without hours | |
 | 3D print pricing and billing (the `prints` module) | |
 | Google Drive sync between devices; invoices and quotes saved to Drive | |
@@ -184,7 +185,7 @@ With sync on, every device signed in to the same Google account shares the same 
 
 It needs a Google Cloud **OAuth client ID** in `config.js` (`googleClientId`), and that client must allow their app's address. There are two ways:
 
-- **Share Eamon's** (friends and family): they send Eamon their GitHub username and Google email. He adds `https://<username>.github.io` as an allowed origin and their email as a test user in his "Radicchio" Google Cloud project. They keep the `googleClientId` already in `config.js`.
+- **Share Eamon's** (friends and family): they send Eamon their GitHub username, and he adds `https://<username>.github.io` as an allowed origin in his "Radicchio" Google Cloud project. They keep the `googleClientId` already in `config.js`.
 - **Their own Google Cloud project**, done once in a browser, signed in as them:
   1. https://console.cloud.google.com/projectcreate: create a project.
   2. https://console.cloud.google.com/apis/library/drive.googleapis.com: **Enable**.
@@ -193,7 +194,9 @@ It needs a Google Cloud **OAuth client ID** in `config.js` (`googleClientId`), a
   5. **Data Access → Add or remove scopes:** tick `…/auth/drive.file`, then **Update** and **Save**.
   6. **Clients → Create client:** Web application, with Authorized JavaScript origins `https://<username>.github.io` and `http://localhost:8000`. Copy the **Client ID** into `googleClientId` in `config.js`. The client secret isn't needed: don't copy it anywhere.
 
-Then, in the app: **setup → connect google drive**, and approve. Google warns that the app "hasn't verified" it; that's expected for a personal testing-mode app, so click **Continue**. The header then shows *synced*. Google's sign-in lasts an hour, and after that the header says *tap to sync*. Changes wait safely on the device until then.
+Then, in the app: **setup → connect google drive**, and approve. Google may warn that the app "hasn't verified" it; that's expected for a small personal app, so click **Continue**. The header then shows *synced*.
+
+On GitHub Pages, Google's sign-in lasts an hour, and after that the header says *tap to sync*; changes wait safely on the device until then. A version hosted on **Cloudflare Pages** can stay signed in instead: the server function in `functions/api/google/` runs there, given a `GOOGLE_CLIENT_SECRET` secret for the Google client (see `ARCHITECTURE.md` → Sync).
 
 `driveFolder` in `config.js` names the Drive folder (default "Radicchio").
 
