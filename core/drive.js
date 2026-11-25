@@ -124,7 +124,7 @@ function gfetch(url,opts){
   opts=opts||{}; opts.headers=Object.assign({},opts.headers||{},{Authorization:"Bearer "+DRV.token});
   return fetch(url,opts).then(function(r){
     if(r.status===401){ DRV.token=null; DRV.exp=0; try{localStorage.removeItem(LSTOKEN)}catch(e){}
-      var e=new Error("signed out"); e.tap=!DRV.state.remembered; throw e }
+      var e=new Error("signed out"); e.tap=!DRV.state.remembered; e.retry=!!DRV.state.remembered; throw e }
     if(!r.ok){ var e2=new Error("Drive said "+r.status); e2.status=r.status; throw e2 }
     return r;
   });
@@ -268,10 +268,12 @@ function driveSync(interactive){
       if(changed||DRV.again) adopt(merged);
       writeBase(merged);
     }
-    DRV.state.lastSync=Date.now(); driveSaveState();
+    DRV.state.lastSync=Date.now(); driveSaveState(); DRV.retried=false;
     driveSetStatus("synced");
     if(changed){ renderAll(); if(UI.sheet) paintSheet() }
   }).catch(function(e){
+    /* a remembered device whose hourly token was rejected: renew and go again */
+    if(e.retry&&!DRV.retried){ DRV.retried=true; DRV.again=true; return }
     driveSetStatus(e.tap?"tap":"error");
     if(interactive&&!e.tap) toast("sync failed — "+e.message);
   }).then(function(){
