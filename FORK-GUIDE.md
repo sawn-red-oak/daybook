@@ -4,7 +4,7 @@ Radicchio is a small app for tracking the hours you work and turning them into i
 
 There are two ways in.
 
-**1. Just use it, with no setup.** Open https://sawn-red-oak.github.io/daybook/ on your phone, then add it to your home screen:
+**1. Just use it, with no setup.** Open https://radicchio-time.pages.dev on your phone, then add it to your home screen:
 
 - **Android:** Chrome → **⋮** → **Add to Home screen**.
 - **iPhone:** Safari → **Share** → **Add to Home Screen**.
@@ -21,7 +21,7 @@ Google Drive sync, which keeps your phone and computer in step, works on this sh
 
 You'll need the **Claude desktop app** on a Mac or Windows computer. Start a new session in its **Code** tab and say:
 
-> Read https://github.com/sawn-red-oak/daybook/blob/main/FORK-GUIDE.md and walk me through making my own version, one part at a time.
+> Read https://github.com/sawn-red-oak/radicchio/blob/main/FORK-GUIDE.md and walk me through making my own version, one part at a time.
 
 If someone gave you a personal note to go with this guide, attach it to that first message too.
 
@@ -63,10 +63,10 @@ A personal version is a **fork**: your own copy of the project on GitHub. You ch
 | Backups, and import with a safe merge | |
 | Hosting your version free on GitHub Pages | |
 
-To see what's changed since this guide was written:
+`CHANGELOG.md` lists every change by version, and what a fork needs to do about each. Read it at the start of each session in an existing fork. To see the latest commits:
 
 ```sh
-gh api repos/sawn-red-oak/daybook/commits --jq '.[0:10][] | .commit.message | split("\n")[0]'
+gh api repos/sawn-red-oak/radicchio/commits --jq '.[0:10][] | .commit.message | split("\n")[0]'
 ```
 
 ---
@@ -118,7 +118,7 @@ Check with `git --version`, `gh --version`, and `python3 --version` (Mac) or `py
 2. Fork and download it into a folder that **isn't synced** by iCloud Drive, OneDrive, Google Drive or Dropbox, because syncing can damage git's files. On Windows, the Documents and Desktop folders are often synced by OneDrive, so use something like `C:\Users\<name>\code`.
    ```sh
    mkdir -p ~/code && cd ~/code
-   gh repo fork sawn-red-oak/daybook --clone --fork-name <repo-name>
+   gh repo fork sawn-red-oak/radicchio --clone --fork-name <repo-name>
    ```
    (On Windows: `mkdir $HOME\code; cd $HOME\code`, then the same `gh repo fork` line.)
 3. Move this Claude session into the new folder. From then on, Claude reads `CLAUDE.md` there automatically.
@@ -229,7 +229,7 @@ A conflict in any other file means something outside `config.js`, `modules/`, th
 Don't edit `core/`. Open an issue on the main repo saying what's needed and why:
 
 ```sh
-gh issue create --repo sawn-red-oak/daybook --title "…" --body "…"
+gh issue create --repo sawn-red-oak/radicchio --title "…" --body "…"
 ```
 
 ---

@@ -32,12 +32,13 @@ sw.js          offline cache (reads the module list from config.js)
 
 ## Rules
 
-- **Customise in `config.js` and `modules/` only.** In a fork, don't edit `core/`, `index.html` or `sw.js`. Fixes to those come from the main repo (`sawn-red-oak/daybook`) through GitHub's "Sync fork", and local edits make those syncs conflict. If core needs a change, open an issue on the main repo.
+- **Customise in `config.js` and `modules/` only.** In a fork, don't edit `core/`, `index.html` or `sw.js`. Fixes to those come from the main repo (`sawn-red-oak/radicchio`) through GitHub's "Sync fork", and local edits make those syncs conflict. If core needs a change, open an issue on the main repo.
 - **A new feature is a new module**, in `modules/<id>.js`, with `<id>` added to `modules` in `config.js`. That's all the wiring: `core/load.js` loads it, and the service worker caches it.
 - **The shape of a module:** see `modules/quotes.js`. Wrap the file in `(function(){ "use strict"; ... })()`, start with `if(!moduleOn("<id>")) return;`, and end with `registerModule({...})`. The comment at the top of `core/registry.js` lists everything a module can provide: `render`, `sheets`, `onShow`, `tab` (core makes the tab and an empty panel `#p-<key>`), `css` and hooks.
 - **A module's data** goes in `modData("<id>")`, never in new top-level keys of `S`. Keep each collection as an object keyed by id (use `uid()`), with an `updatedAt` (`now()`) on every record. Backups, imports and (soon) Drive sync merge record by record, and the newer `updatedAt` wins. Call `save()` after a change.
 - Scripts are classic scripts sharing one global scope, not ES modules. Core's functions (`$`, `el`, `money`, `toast`, `openSheet`, `head`, `fieldOf`, `inp`, `keepList`, `calendar`, `itemEditor` …) and `S` are global. Inside a module, keep everything private and expose it only through `registerModule`.
 - Never remove or rename an existing key in `S`: other devices and old backups still carry it.
 - In the main repo, bump `VERSION` in `core/store.js` with each change so phones pick up the new files.
+- **Add a `CHANGELOG.md` entry** with every change in the main repo: what changed, and what a fork must do about it (if anything). Forks read it to catch up.
 - **Keep `FORK-GUIDE.md` current.** In the main repo, any change that affects what someone can do, set up or customise (a new feature, a new setting, a new setup step, something moving from "coming" to "ready") updates `FORK-GUIDE.md` in the same pull request. Its link is shared with people as the description of the latest version.
 - The built-in tabs (track, blocks, quotes) are in `index.html` and carry `data-module="<id>"`, so they hide when their module is off.

@@ -10,8 +10,9 @@ Radicchio is a static web app: plain HTML, CSS and JavaScript, with no build ste
 
 | What | Where |
 |---|---|
-| Main repo | https://github.com/sawn-red-oak/daybook (to be renamed `radicchio` at plan step 7) |
-| Live app | https://sawn-red-oak.github.io/daybook/ (GitHub Pages from `main`; moves to Cloudflare Pages at step 7) |
+| Main repo | https://github.com/sawn-red-oak/radicchio (named `daybook` until 2026-11-25; GitHub redirects the old links) |
+| Live app | https://radicchio-time.pages.dev (Cloudflare Pages project `radicchio-time`, deployed from `main` on every push) |
+| Changes | `CHANGELOG.md`: what changed per version, and what forks need to do |
 | Google Cloud project | `radicchio-515819`, org eamon.llc. OAuth client "Radicchio web", ID in `config.js` |
 | Synced data | `Radicchio/radicchio-data.json` in each person's own Google Drive |
 | Plan and status | `Radicchio Plan.md` in Eamon's Drive, `Time Tracker` folder |
@@ -178,7 +179,7 @@ On a synced device, a replace propagates like any other edit, so deletions inclu
 
 ## Releasing
 
-1. Work on a branch, then open a pull request to `main` and merge it. GitHub Pages publishes `main` within a minute or two.
+1. Work on a branch, then open a pull request to `main` and merge it. Cloudflare Pages deploys `main` to radicchio-time.pages.dev within a minute or two. Add a `CHANGELOG.md` entry with each change.
 2. Bump `VERSION` in `core/store.js` with each change. The service worker is network-first, and phones pick up a new version after opening the app once with signal and then reopening it.
 3. Any change to what people can do or set up also updates `FORK-GUIDE.md` in the same pull request.
 
@@ -204,7 +205,7 @@ On a synced device, a replace propagates like any other edit, so deletions inclu
 
 - Testing mode, audience External, `drive.file` scope only.
 - Test users: hello@eamon.llc, plus anyone sharing the client.
-- Allowed origins: `https://sawn-red-oak.github.io`, `http://localhost:8765`.
+- Allowed origins: `https://radicchio-time.pages.dev`, `https://sawn-red-oak.github.io` (the old address), `http://localhost:8765`.
 - A fork that shares the client needs its own GitHub Pages origin added, and its owner added as a test user.
 
 ## Testing (how it has been done)
